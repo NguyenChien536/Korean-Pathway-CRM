@@ -38,3 +38,6 @@ docker-compose.override.yml
 
 # Documentation
 docs/
+
+# Workflow
+CONTRIBUTING.md
