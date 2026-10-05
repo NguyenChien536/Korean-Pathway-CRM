@@ -40,4 +40,4 @@ docker-compose.override.yml
 docs/
 
 # Workflow
-CONTRIBUTING.md
+docs/CONTRIBUTING.md
