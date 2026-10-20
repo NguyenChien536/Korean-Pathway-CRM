@@ -1,7 +1,7 @@
-﻿package com.crm.korean_pathway_crm.service;
+package com.crm.korean_pathway_crm.role.service;
 
-import com.crm.korean_pathway_crm.dto.RoleDto;
-import com.crm.korean_pathway_crm.dto.RoleRequest;
+import com.crm.korean_pathway_crm.role.dto.RoleDto;
+import com.crm.korean_pathway_crm.role.dto.RoleRequest;
 import java.util.List;
 import java.util.UUID;
 

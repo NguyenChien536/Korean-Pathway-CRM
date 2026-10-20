@@ -1,4 +1,4 @@
-﻿package com.crm.korean_pathway_crm.dto;
+package com.crm.korean_pathway_crm.role.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;

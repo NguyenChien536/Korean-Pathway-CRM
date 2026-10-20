@@ -1,4 +1,4 @@
-﻿package com.crm.korean_pathway_crm.exception;
+package com.crm.korean_pathway_crm.common.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

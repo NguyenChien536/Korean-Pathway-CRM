@@ -1,8 +1,8 @@
-﻿package com.crm.korean_pathway_crm.mapper;
+package com.crm.korean_pathway_crm.role.mapper;
 
-import com.crm.korean_pathway_crm.dto.RoleDto;
-import com.crm.korean_pathway_crm.dto.RoleRequest;
-import com.crm.korean_pathway_crm.entity.Role;
+import com.crm.korean_pathway_crm.role.dto.RoleDto;
+import com.crm.korean_pathway_crm.role.dto.RoleRequest;
+import com.crm.korean_pathway_crm.role.entity.Role;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
 

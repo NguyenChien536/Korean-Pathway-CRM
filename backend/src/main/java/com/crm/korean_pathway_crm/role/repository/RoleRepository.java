@@ -1,6 +1,6 @@
-﻿package com.crm.korean_pathway_crm.repository;
+package com.crm.korean_pathway_crm.role.repository;
 
-import com.crm.korean_pathway_crm.entity.Role;
+import com.crm.korean_pathway_crm.role.entity.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.UUID;

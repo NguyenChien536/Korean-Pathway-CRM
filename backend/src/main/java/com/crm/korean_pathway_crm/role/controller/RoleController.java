@@ -1,8 +1,8 @@
-﻿package com.crm.korean_pathway_crm.controller;
+package com.crm.korean_pathway_crm.role.controller;
 
-import com.crm.korean_pathway_crm.dto.RoleDto;
-import com.crm.korean_pathway_crm.dto.RoleRequest;
-import com.crm.korean_pathway_crm.service.RoleService;
+import com.crm.korean_pathway_crm.role.dto.RoleDto;
+import com.crm.korean_pathway_crm.role.dto.RoleRequest;
+import com.crm.korean_pathway_crm.role.service.RoleService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

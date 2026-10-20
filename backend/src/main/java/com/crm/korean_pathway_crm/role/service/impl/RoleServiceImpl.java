@@ -1,12 +1,12 @@
-﻿package com.crm.korean_pathway_crm.service.impl;
+package com.crm.korean_pathway_crm.role.service.impl;
 
-import com.crm.korean_pathway_crm.dto.RoleDto;
-import com.crm.korean_pathway_crm.dto.RoleRequest;
-import com.crm.korean_pathway_crm.entity.Role;
-import com.crm.korean_pathway_crm.exception.ResourceNotFoundException;
-import com.crm.korean_pathway_crm.mapper.RoleMapper;
-import com.crm.korean_pathway_crm.repository.RoleRepository;
-import com.crm.korean_pathway_crm.service.RoleService;
+import com.crm.korean_pathway_crm.role.dto.RoleDto;
+import com.crm.korean_pathway_crm.role.dto.RoleRequest;
+import com.crm.korean_pathway_crm.role.entity.Role;
+import com.crm.korean_pathway_crm.common.exception.ResourceNotFoundException;
+import com.crm.korean_pathway_crm.role.mapper.RoleMapper;
+import com.crm.korean_pathway_crm.role.repository.RoleRepository;
+import com.crm.korean_pathway_crm.role.service.RoleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

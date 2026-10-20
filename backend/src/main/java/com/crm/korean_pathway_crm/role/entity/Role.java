@@ -1,4 +1,4 @@
-﻿package com.crm.korean_pathway_crm.entity;
+package com.crm.korean_pathway_crm.role.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
