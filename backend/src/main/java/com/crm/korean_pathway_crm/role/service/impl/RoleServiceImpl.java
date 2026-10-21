@@ -30,11 +30,10 @@ public class RoleServiceImpl implements RoleService {
         }
         Role role = roleMapper.toEntity(request);
         if (role.getStatus() == null) {
-            role.setStatus("ACTIVE");
+            role.setStatus(com.crm.korean_pathway_crm.role.enums.RoleStatus.ACTIVE);
         }
         return roleMapper.toDto(roleRepository.save(role));
     }
-
     @Override
     @Transactional
     public RoleDto updateRole(UUID id, RoleRequest request) {

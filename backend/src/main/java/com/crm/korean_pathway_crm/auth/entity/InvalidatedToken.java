@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.*;
 
-import java.util.Date;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "invalidated_token")
@@ -20,5 +20,5 @@ public class InvalidatedToken {
     private String id;
 
     @Column(nullable = false)
-    private Date expiryTime;
+    private OffsetDateTime expiryTime;
 }

@@ -1,10 +1,13 @@
 package com.crm.korean_pathway_crm.role.entity;
 
+import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import java.time.ZonedDateTime;
+
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -14,31 +17,34 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class Role {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+     UUID id;
 
     @Column(nullable = false, unique = true, length = 80)
-    private String code;
+     String code;
 
     @Column(nullable = false, length = 100)
-    private String name;
+     String name;
 
     @Column(length = 500)
-    private String description;
+     String description;
 
     @Column(name = "is_system", nullable = false)
-    private boolean isSystem;
+     boolean isSystem;
 
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
     @Column(nullable = false, length = 20)
-    private String status;
+    RoleStatus status = RoleStatus.ACTIVE;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private ZonedDateTime createdAt;
+    OffsetDateTime createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
-    private ZonedDateTime updatedAt;
+     OffsetDateTime updatedAt;
 }

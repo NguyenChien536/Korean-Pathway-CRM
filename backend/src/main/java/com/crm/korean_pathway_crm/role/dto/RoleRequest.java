@@ -1,16 +1,24 @@
 package com.crm.korean_pathway_crm.role.dto;
 
+import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
 
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoleRequest {
     @NotBlank(message = "Code is required")
-    private String code;
+    String code;
     
     @NotBlank(message = "Name is required")
-    private String name;
+     String name;
     
-    private String description;
-    private String status;
+     String description;
+     @Builder.Default
+     RoleStatus status = RoleStatus.ACTIVE;
 }

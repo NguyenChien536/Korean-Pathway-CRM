@@ -37,7 +37,7 @@ public class AuthenticationService {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
 
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(user.getId()) // Lưu ID người dùng (chuỗi bất biến)
+                .subject(user.getId().toString()) // Lưu ID người dùng (chuỗi bất biến)
                 .issuer("koreanpathway.com")
                 .issueTime(new Date())
                 .jwtID(jti) // Gắn JTI làm định danh duy nhất cho Access Token
@@ -59,8 +59,10 @@ public class AuthenticationService {
     private String buildScope(Role role){
         StringJoiner joiner = new StringJoiner(" ");
 
-        if (role == null || role.getStatus() == RoleStatus.INACTIVE){
-
+        if (role == null || role.getStatus() == RoleStatus.INACTIVE) {
+            return "";
         }
+        joiner.add("ROLE_" + role.getCode());
+        return joiner.toString();
     }
 }

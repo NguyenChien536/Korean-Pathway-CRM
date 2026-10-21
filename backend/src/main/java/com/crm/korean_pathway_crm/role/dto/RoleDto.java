@@ -1,17 +1,24 @@
 package com.crm.korean_pathway_crm.role.dto;
 
-import lombok.Data;
-import java.time.ZonedDateTime;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
+
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoleDto {
-    private UUID id;
-    private String code;
-    private String name;
-    private String description;
-    private boolean isSystem;
-    private String status;
-    private ZonedDateTime createdAt;
-    private ZonedDateTime updatedAt;
+     UUID id;
+     String code;
+     String name;
+     String description;
+     boolean isSystem;
+     String status;
+     OffsetDateTime createdAt;
+    OffsetDateTime updatedAt;
 }
