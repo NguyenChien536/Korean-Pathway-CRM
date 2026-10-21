@@ -1,0 +1,29 @@
+package com.crm.korean_pathway_crm.exception;
+
+import lombok.Getter;
+import org.springframework.http.HttpStatus;
+
+@Getter
+public enum ErrorCode {
+    UNCATEGORIZED_EXCEPTION(9999, "Lỗi không xác định", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    USERNAME_ALREADY_EXISTS(1001, "Tên đăng nhập đã tồn tại", HttpStatus.CONFLICT),
+    EMAIL_ALREADY_EXISTS(1002, "Email đã tồn tại", HttpStatus.CONFLICT),
+    USER_NOT_FOUND(1003, "Không tìm thấy người dùng", HttpStatus.NOT_FOUND),
+    PASSWORD_CONFIRMATION_MISMATCH(1004, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
+    AUTHENTICATED_USER_NOT_FOUND(1005, "Không xác định được người dùng đang đăng nhập", HttpStatus.UNAUTHORIZED),
+
+    ROLE_NOT_FOUND(2001, "Không tìm thấy vai trò", HttpStatus.NOT_FOUND),
+    ROLE_INACTIVE(2002, "Không thể gán vai trò đang ngừng hoạt động", HttpStatus.CONFLICT),
+    ROLE_IN_USE(2003, "Không thể xóa vai trò đang được gán cho người dùng", HttpStatus.CONFLICT);
+
+    private final int code;
+    private final String message;
+    private final HttpStatus httpStatus;
+
+    ErrorCode(int code, String message, HttpStatus httpStatus) {
+        this.code = code;
+        this.message = message;
+        this.httpStatus = httpStatus;
+    }
+}
