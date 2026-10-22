@@ -8,6 +8,7 @@ import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.NullValuePropertyMappingStrategy;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
@@ -37,8 +38,11 @@ public interface UserMapper {
     @Mapping(target = "updatedById", source = "updatedBy.id")
     UserResponse toUserResponse(User user);
 
-    // This is a full profile update: nullable phone can be cleared by sending null.
-    @BeanMapping(builder = @org.mapstruct.Builder(disableBuilder = true))
+    // PUT accepts partial fields: null means unchanged; an empty phone clears the stored phone.
+    @BeanMapping(
+            nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
+            builder = @org.mapstruct.Builder(disableBuilder = true)
+    )
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "passwordHash", ignore = true)
     @Mapping(target = "role", ignore = true)

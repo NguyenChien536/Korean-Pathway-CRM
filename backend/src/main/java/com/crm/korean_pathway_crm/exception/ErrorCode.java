@@ -12,6 +12,8 @@ public enum ErrorCode {
     USER_NOT_FOUND(1003, "Không tìm thấy người dùng", HttpStatus.NOT_FOUND),
     PASSWORD_CONFIRMATION_MISMATCH(1004, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
     AUTHENTICATED_USER_NOT_FOUND(1005, "Không xác định được người dùng đang đăng nhập", HttpStatus.UNAUTHORIZED),
+    USER_PHONE_EXISTED(1007, "Số điện thoại đã tồn tại", HttpStatus.CONFLICT),
+    ACCESS_DENIED(1006, "Bạn không có quyền", HttpStatus.FORBIDDEN),
 
     ROLE_NOT_FOUND(2001, "Không tìm thấy vai trò", HttpStatus.NOT_FOUND),
     ROLE_INACTIVE(2002, "Không thể gán vai trò đang ngừng hoạt động", HttpStatus.CONFLICT),

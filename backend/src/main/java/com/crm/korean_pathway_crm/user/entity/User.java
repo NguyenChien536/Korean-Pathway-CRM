@@ -4,8 +4,6 @@ import com.crm.korean_pathway_crm.role.entity.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -64,7 +62,6 @@ public class User {
     @JoinColumn(name = "created_by")
      User createdBy;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
      OffsetDateTime createdAt;
 
@@ -72,7 +69,6 @@ public class User {
     @JoinColumn(name = "updated_by")
      User updatedBy;
 
-    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
      OffsetDateTime updatedAt;
 }
