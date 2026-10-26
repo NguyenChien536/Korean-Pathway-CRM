@@ -4,7 +4,7 @@ import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -19,7 +19,7 @@ public class RoleResponse {
     String name;
     String description;
     RoleStatus status;
-    OffsetDateTime createdAt;
-    OffsetDateTime updatedAt;
+    LocalDateTime createdAt;
+    LocalDateTime updatedAt;
     boolean isSystem;
 }

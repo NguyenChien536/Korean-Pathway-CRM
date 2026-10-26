@@ -16,5 +16,6 @@ public class AuthenticationResponse {
     String tokenType;
     String accessToken;
     String refreshToken;
+    long expiresIn;
     Instant accessTokenExpiresAt;
 }

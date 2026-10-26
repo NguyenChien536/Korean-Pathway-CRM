@@ -41,6 +41,22 @@ The system is built with a modern, layered architecture:
    Configure your PostgreSQL instance and update the database credentials in the application properties.
 
 3. **Backend Setup**
+   On Windows, initialize a persistent local JWT signing key once:
+   ```powershell
+   .\backend\scripts\initialize-local-jwt.ps1
+   ```
+   This writes `backend/.local/jwt.properties`, which is ignored by Git. Spring Boot
+   loads it when started from the repository root or from `backend`. Keep this file
+   between restarts; `-Rotate` explicitly replaces the key and invalidates existing
+   access tokens. A `JWT_SIGNER_KEY` environment variable overrides the local key
+   and must contain at least 64 UTF-8 bytes for HS512. The configured value is used
+   as a UTF-8 string, not decoded from Base64.
+
+   Access-token lifetime is configured with `JWT_EXPIRATION` (default 3600 seconds),
+   refresh-token lifetime with `JWT_REFRESH_EXPIRATION` (default 604800 seconds).
+   Login and refresh return the same token response; clients must replace both
+   tokens after each refresh. APIs are under `http://localhost:8081/crm-korean`.
+
    ```bash
    cd backend
    ./mvnw clean install

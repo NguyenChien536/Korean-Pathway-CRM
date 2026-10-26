@@ -4,10 +4,9 @@ import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Entity
@@ -40,11 +39,21 @@ public class Role {
     @Column(nullable = false, length = 20)
     RoleStatus status = RoleStatus.ACTIVE;
 
-    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    OffsetDateTime createdAt;
+    LocalDateTime createdAt;
 
-    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
-     OffsetDateTime updatedAt;
+     LocalDateTime updatedAt;
+
+    @PrePersist
+    void onCreate() {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
+    }
 }

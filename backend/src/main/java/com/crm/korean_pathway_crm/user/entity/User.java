@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -46,29 +46,29 @@ public class User {
      boolean isActive = true;
 
     @Column(name = "last_login_at")
-     OffsetDateTime lastLoginAt;
+     LocalDateTime lastLoginAt;
 
     @Column(name = "password_changed_at")
-     OffsetDateTime passwordChangedAt;
+     LocalDateTime passwordChangedAt;
 
     @Builder.Default
     @Column(name = "failed_login_count", nullable = false)
      int failedLoginCount = 0;
 
     @Column(name = "locked_until")
-     OffsetDateTime lockedUntil;
+     LocalDateTime lockedUntil;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
      User createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-     OffsetDateTime createdAt;
+     LocalDateTime createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by")
      User updatedBy;
 
     @Column(name = "updated_at", nullable = false)
-     OffsetDateTime updatedAt;
+     LocalDateTime updatedAt;
 }

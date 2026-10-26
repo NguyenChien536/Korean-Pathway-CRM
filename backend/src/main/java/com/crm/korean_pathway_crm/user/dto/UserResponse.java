@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -29,9 +29,9 @@ public class UserResponse {
     String roleName;
 
     boolean active;
-    OffsetDateTime lastLoginAt;
-    OffsetDateTime createdAt;
-    OffsetDateTime updatedAt;
+    LocalDateTime lastLoginAt;
+    LocalDateTime createdAt;
+    LocalDateTime updatedAt;
     UUID createdById;
     UUID updatedById;
 }

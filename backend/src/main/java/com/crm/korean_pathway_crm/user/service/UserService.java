@@ -24,7 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -63,7 +64,7 @@ public class UserService {
         user.setRole(role);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
 
-        OffsetDateTime now = OffsetDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         user.setPasswordChangedAt(now);
         user.setCreatedBy(actor);
         user.setUpdatedBy(actor);
@@ -127,13 +128,34 @@ public class UserService {
 
         boolean passwordChanged = updatePasswordIfRequested(user, request);
         user.setUpdatedBy(actor);
-        user.setUpdatedAt(OffsetDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
 
         User savedUser = saveUser(user);
         if (roleChanged || passwordChanged) {
             refreshTokenService.revokeAllUserRefreshTokens(savedUser.getUsername());
         }
         return userMapper.toUserResponse(savedUser);
+    }
+
+    @Transactional
+    public void deleteUser(UUID userId) {
+        User actor = requirePermission("USERS.MANAGE");
+        User user = findUser(userId);
+
+        // Keep audit and business-history references intact; disable the account instead of deleting it.
+        if (actor.getId().equals(user.getId())) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        if (!user.isActive()) {
+            return;
+        }
+
+        user.setActive(false);
+        user.setUpdatedBy(actor);
+        user.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        userRepository.save(user);
+        refreshTokenService.revokeAllUserRefreshTokens(user.getUsername());
     }
 
     private boolean updatePasswordIfRequested(User user, UserUpdateRequest request) {
@@ -148,7 +170,7 @@ public class UserService {
 
         ensurePasswordConfirmation(password, confirmation);
         user.setPasswordHash(passwordEncoder.encode(password));
-        user.setPasswordChangedAt(OffsetDateTime.now());
+        user.setPasswordChangedAt(LocalDateTime.now(ZoneOffset.UTC));
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
         return true;

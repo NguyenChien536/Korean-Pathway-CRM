@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import com.crm.korean_pathway_crm.user.entity.User;
 import lombok.*;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -28,10 +28,10 @@ public class RefreshToken {
     private User user;
 
     @Column(nullable = false)
-    private OffsetDateTime expiresAt;
+    private LocalDateTime expiresAt;
 
     @Column(nullable = false)
-    private OffsetDateTime createdAt;
+    private LocalDateTime createdAt;
 
     @Column(nullable = false)
     @Builder.Default

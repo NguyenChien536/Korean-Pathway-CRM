@@ -15,6 +15,9 @@ public enum ErrorCode {
     USER_PHONE_EXISTED(1007, "Số điện thoại đã tồn tại", HttpStatus.CONFLICT),
     ACCESS_DENIED(1006, "Bạn không có quyền", HttpStatus.FORBIDDEN),
     AUTHENTICATION_FAILED(1008, "Tên đăng nhập hoặc mật khẩu không đúng", HttpStatus.UNAUTHORIZED),
+    INVALID_REFRESH_TOKEN(1009, "Refresh token không hợp lệ, đã hết hạn hoặc đã bị thu hồi", HttpStatus.UNAUTHORIZED),
+    INVALID_REQUEST(1010, "Dữ liệu yêu cầu không hợp lệ", HttpStatus.BAD_REQUEST),
+    INVALID_ACCESS_TOKEN(1011, "Phiên đăng nhập không hợp lệ hoặc đã hết hạn", HttpStatus.UNAUTHORIZED),
 
     ROLE_NOT_FOUND(2001, "Không tìm thấy vai trò", HttpStatus.NOT_FOUND),
     ROLE_INACTIVE(2002, "Không thể gán vai trò đang ngừng hoạt động", HttpStatus.CONFLICT),
