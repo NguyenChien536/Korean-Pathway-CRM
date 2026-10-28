@@ -2,6 +2,8 @@ package com.crm.korean_pathway_crm.role.dto;
 
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -12,13 +14,18 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoleRequest {
-    @NotBlank(message = "Code is required")
+    @NotBlank(message = "Mã vai trò là bắt buộc")
+    @Size(max = 80, message = "Mã vai trò tối đa 80 ký tự")
+    @Pattern(regexp = "^[A-Za-z][A-Za-z0-9_]*$", message = "Mã vai trò bắt đầu bằng chữ và chỉ chứa chữ, số, dấu gạch dưới")
     String code;
-    
-    @NotBlank(message = "Name is required")
-     String name;
-    
-     String description;
-     @Builder.Default
-     RoleStatus status = RoleStatus.ACTIVE;
+
+    @NotBlank(message = "Tên vai trò là bắt buộc")
+    @Size(max = 100, message = "Tên vai trò tối đa 100 ký tự")
+    String name;
+
+    @Size(max = 500, message = "Mô tả vai trò tối đa 500 ký tự")
+    String description;
+
+    @Builder.Default
+    RoleStatus status = RoleStatus.ACTIVE;
 }

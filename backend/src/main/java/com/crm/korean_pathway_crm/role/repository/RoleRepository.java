@@ -10,6 +10,7 @@ import java.util.UUID;
 @Repository
 public interface RoleRepository extends JpaRepository<Role, UUID> {
     boolean existsByCode(String code);
+    boolean existsByCodeIgnoreCase(String code);
 
     @Query(value = """
             SELECT EXISTS (

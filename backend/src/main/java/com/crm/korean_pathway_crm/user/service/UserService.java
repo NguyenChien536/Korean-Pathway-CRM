@@ -144,7 +144,7 @@ public class UserService {
 
         // Keep audit and business-history references intact; disable the account instead of deleting it.
         if (actor.getId().equals(user.getId())) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
+            throw new AppException(ErrorCode.CANNOT_DEACTIVATE_SELF);
         }
 
         if (!user.isActive()) {

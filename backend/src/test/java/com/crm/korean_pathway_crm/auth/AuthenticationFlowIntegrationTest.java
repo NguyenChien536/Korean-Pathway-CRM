@@ -252,6 +252,59 @@ class AuthenticationFlowIntegrationTest {
         return post("/api/v1/auth/log-in", Map.of("username", user.getUsername(), "password", "Password1!"), null);
     }
 
+    @Test
+    void regularUserCannotCreateRoleAndHttpErrorsUseApiResponse() throws Exception {
+        String access = (String) result(login()).get("accessToken");
+        HttpResponse<String> denied = post("/api/v1/roles", Map.of("code", "CUSTOM", "name", "Custom"), access);
+        assertThat(denied.statusCode()).withFailMessage(denied.body()).isEqualTo(403);
+        assertThat(json.readValue(denied.body(), Map.class)).containsEntry("code", 1006);
+
+        HttpResponse<String> invalidId = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/api/v1/users/invalid-uuid"))
+                .header("Authorization", "Bearer " + access).GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(invalidId.statusCode()).isEqualTo(400);
+        assertThat(json.readValue(invalidId.body(), Map.class)).containsEntry("code", 9003);
+
+        HttpResponse<String> missing = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/api/v1/roles/" + UUID.randomUUID()))
+                .header("Authorization", "Bearer " + access).GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(missing.statusCode()).isEqualTo(404);
+        assertThat(json.readValue(missing.body(), Map.class)).containsEntry("code", 2001);
+    }
+
+    @Test
+    void adminGetsSpecificErrorsForDuplicateProtectedAndAssignedRoles() throws Exception {
+        Role admin = roles.findAll().stream().filter(value -> value.getCode().equals("SYSTEM_ADMIN")).findFirst()
+                .orElseGet(() -> roles.saveAndFlush(Role.builder().code("SYSTEM_ADMIN").name("Admin").isSystem(true).build()));
+        user.setRole(admin);
+        users.saveAndFlush(user);
+        String access = (String) result(login()).get("accessToken");
+        String code = "custom_" + UUID.randomUUID().toString().replace("-", "");
+
+        HttpResponse<String> created = post("/api/v1/roles", Map.of("code", code, "name", " Custom role "), access);
+        assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
+        Map<String, Object> roleBody = json.readValue(created.body(), Map.class);
+        assertThat(roleBody.get("code")).isEqualTo(code.toUpperCase(java.util.Locale.ROOT));
+        assertThat(roleBody.get("name")).isEqualTo("Custom role");
+        String roleId = (String) roleBody.get("id");
+        HttpResponse<String> duplicate = post("/api/v1/roles", Map.of("code", code, "name", "Duplicate"), access);
+        assertThat(duplicate.statusCode()).isEqualTo(409);
+        assertThat(json.readValue(duplicate.body(), Map.class)).containsEntry("code", 2004);
+
+        HttpResponse<String> protectedRole = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/api/v1/roles/" + admin.getId()))
+                .header("Authorization", "Bearer " + access).DELETE().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(protectedRole.statusCode()).isEqualTo(409);
+        assertThat(json.readValue(protectedRole.body(), Map.class)).containsEntry("code", 2005);
+
+        Role assignedRole = roles.findById(UUID.fromString(roleId)).orElseThrow();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        String suffix = UUID.randomUUID().toString();
+        users.saveAndFlush(User.builder().username(suffix).email(suffix + "@example.com").fullName("Assigned user")
+                .passwordHash(encoder.encode("Password1!")).role(assignedRole).createdAt(now).updatedAt(now).build());
+        HttpResponse<String> assigned = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/api/v1/roles/" + roleId))
+                .header("Authorization", "Bearer " + access).DELETE().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(assigned.statusCode()).isEqualTo(409);
+        assertThat(json.readValue(assigned.body(), Map.class)).containsEntry("code", 2003);
+    }
+
     private String signedAccessToken(Instant expiry) throws Exception {
         SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS512), new JWTClaimsSet.Builder()
                 .issuer(jwtProperties.getIssuer()).subject(user.getId().toString())
