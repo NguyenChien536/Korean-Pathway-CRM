@@ -45,6 +45,12 @@ public class UserController {
     }
 
     // getMyInfo
+    @GetMapping("/me")
+    public ApiResponse<UserResponse> getMyInfo(){
+        return  ApiResponse.<UserResponse>builder()
+                .result(userService.getMyInfo())
+                .build();
+    }
     //UpdateMyInfo
 
     @PutMapping("/{userId}")

@@ -72,6 +72,59 @@ class AuthenticationFlowIntegrationTest {
     }
 
     @Test
+    void currentProfileReturnsOnlyTheTokenOwnerWithoutUserReadPermission() throws Exception {
+        String firstAccess = (String) result(login()).get("accessToken");
+        Map<String, Object> profile = result(currentProfile(firstAccess));
+        assertThat(profile).containsEntry("id", user.getId().toString())
+                .containsEntry("username", user.getUsername())
+                .containsEntry("email", user.getEmail())
+                .containsEntry("fullName", user.getFullName())
+                .containsEntry("roleId", role.getId().toString())
+                .containsEntry("roleCode", role.getCode())
+                .containsEntry("roleName", role.getName())
+                .containsEntry("active", true);
+        assertThat(profile.keySet()).containsExactlyInAnyOrder(
+                "id", "username", "email", "fullName", "phone", "roleId", "roleCode", "roleName",
+                "active", "lastLoginAt", "createdAt", "updatedAt", "createdById", "updatedById");
+
+        String suffix = UUID.randomUUID().toString();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        User other = users.saveAndFlush(User.builder()
+                .username("other-" + suffix).email(suffix + "@example.com").fullName("Other User")
+                .passwordHash(encoder.encode("Password1!")).role(role).createdAt(now).updatedAt(now).build());
+        String secondAccess = (String) result(post("/api/v1/auth/log-in",
+                Map.of("username", other.getUsername(), "password", "Password1!"), null)).get("accessToken");
+        assertThat(result(currentProfile(secondAccess))).containsEntry("id", other.getId().toString())
+                .containsEntry("username", other.getUsername());
+        assertThat(result(currentProfile(firstAccess))).containsEntry("id", user.getId().toString());
+    }
+
+    @Test
+    void currentProfileRejectsMissingAndMalformedAccessTokens() throws Exception {
+        for (String access : new String[] {null, "not-a-jwt"}) {
+            HttpResponse<String> response = currentProfile(access);
+            assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(401);
+            assertThat(json.readValue(response.body(), Map.class)).containsEntry("code", 1011)
+                    .doesNotContainKey("result");
+        }
+    }
+
+    @Test
+    void currentProfileRejectsExpiredTokenWithOtherwiseValidClaims() throws Exception {
+        String access = (String) result(login()).get("accessToken");
+        assertThat(currentProfile(access).statusCode()).isEqualTo(200);
+        JWTClaimsSet claims = new JWTClaimsSet.Builder(SignedJWT.parse(access).getJWTClaimsSet())
+                .issueTime(Date.from(Instant.now().minusSeconds(120)))
+                .expirationTime(Date.from(Instant.now().minusSeconds(60))).build();
+        SignedJWT expired = new SignedJWT(new JWSHeader(JWSAlgorithm.HS512), claims);
+        expired.sign(new MACSigner(jwtProperties.signingKeyBytes()));
+
+        HttpResponse<String> response = currentProfile(expired.serialize());
+        assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(401);
+        assertThat(json.readValue(response.body(), Map.class)).containsEntry("code", 1011);
+    }
+
+    @Test
     void loginAndRefreshReturnSameResponseContractAndRotateToken() throws Exception {
         HttpResponse<String> login = login();
         Map<String, Object> original = result(login);
@@ -136,10 +189,12 @@ class AuthenticationFlowIntegrationTest {
         String access = (String) tokens.get("accessToken");
         String refresh = (String) tokens.get("refreshToken");
         assertThat(getInfo(access).statusCode()).isEqualTo(200);
+        assertThat(currentProfile(access).statusCode()).isEqualTo(200);
 
         assertThat(post("/api/v1/auth/logout", Map.of("refreshToken", refresh), access).statusCode()).isEqualTo(200);
 
         assertThat(getInfo(access).statusCode()).isEqualTo(401);
+        assertThat(currentProfile(access).statusCode()).isEqualTo(401);
         assertThat(post("/api/v1/auth/refresh", Map.of("refreshToken", refresh), null).statusCode()).isEqualTo(401);
         assertThat(post("/api/v1/auth/logout", Map.of("refreshToken", refresh), null).statusCode()).isEqualTo(200);
         assertThat(post("/api/v1/auth/logout", Map.of("refreshToken", refresh), access).statusCode()).isEqualTo(200);
@@ -164,6 +219,7 @@ class AuthenticationFlowIntegrationTest {
     @ValueSource(strings = {"inactive-user", "inactive-role", "locked-user", "changed-password", "changed-role"})
     void issuedAccessTokenIsRejectedAfterAccountCredentialsOrRoleChange(String state) throws Exception {
         String access = (String) result(login()).get("accessToken");
+        assertThat(currentProfile(access).statusCode()).isEqualTo(200);
         if (state.equals("inactive-role")) {
             role.setStatus(RoleStatus.INACTIVE);
             roles.saveAndFlush(role);
@@ -178,6 +234,7 @@ class AuthenticationFlowIntegrationTest {
             users.saveAndFlush(user);
         }
         assertThat(getInfo(access).statusCode()).isEqualTo(401);
+        assertThat(currentProfile(access).statusCode()).isEqualTo(401);
     }
 
     @Test
@@ -326,6 +383,14 @@ class AuthenticationFlowIntegrationTest {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)));
+        if (accessToken != null) {
+            request.header("Authorization", "Bearer " + accessToken);
+        }
+        return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> currentProfile(String accessToken) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/v1/users/me")).GET();
         if (accessToken != null) {
             request.header("Authorization", "Bearer " + accessToken);
         }

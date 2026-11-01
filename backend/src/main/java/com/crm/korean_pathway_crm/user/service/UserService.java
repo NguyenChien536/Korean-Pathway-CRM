@@ -137,6 +137,12 @@ public class UserService {
         return userMapper.toUserResponse(savedUser);
     }
 
+    @Transactional(readOnly = true)
+    public UserResponse getMyInfo(){
+        User user = currentActor();
+        return userMapper.toUserResponse(user);
+    }
+
     @Transactional
     public void deleteUser(UUID userId) {
         User actor = requirePermission("USERS.MANAGE");
@@ -157,6 +163,8 @@ public class UserService {
         userRepository.save(user);
         refreshTokenService.revokeAllUserRefreshTokens(user.getUsername());
     }
+
+
 
     private boolean updatePasswordIfRequested(User user, UserUpdateRequest request) {
         String password = request.getPassword();
