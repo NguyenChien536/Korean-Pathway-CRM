@@ -7,6 +7,8 @@ import com.crm.korean_pathway_crm.role.entity.Role;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import com.crm.korean_pathway_crm.role.enums.SystemRoleCode;
 import com.crm.korean_pathway_crm.role.repository.RoleRepository;
+import com.crm.korean_pathway_crm.user.dto.ChangePasswordRequest;
+import com.crm.korean_pathway_crm.user.dto.MyInfoUpdateRequest;
 import com.crm.korean_pathway_crm.user.dto.UserCreationRequest;
 import com.crm.korean_pathway_crm.user.dto.UserResponse;
 import com.crm.korean_pathway_crm.user.dto.UserUpdateRequest;
@@ -14,6 +16,7 @@ import com.crm.korean_pathway_crm.user.entity.User;
 import com.crm.korean_pathway_crm.user.mapper.UserMapper;
 import com.crm.korean_pathway_crm.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
@@ -24,12 +27,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -138,9 +143,60 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserResponse getMyInfo(){
+    public UserResponse getMyInfo() {
         User user = currentActor();
         return userMapper.toUserResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateMyInfo(MyInfoUpdateRequest request) {
+        User user = currentActor();
+        if (request.getUsername() != null) {
+            String username = normalizeRequired(request.getUsername());
+            if (username.length() < 2) {
+                throw new AppException(ErrorCode.INVALID_REQUEST);
+            }
+            ensureUsernameAvailable(username, user.getId());
+            user.setUsername(username);
+        }
+
+        if (request.getEmail() != null) {
+            String email = normalizeRequired(request.getEmail());
+            ensureEmailAvailable(email, user.getId());
+            user.setEmail(email);
+        }
+
+        if (request.getPhone() != null) {
+            String phone = normalizeOptional(request.getPhone());
+            ensurePhoneAvailable(phone, user.getId());
+            user.setPhone(phone);
+        }
+
+        user.setUpdatedBy(user);
+        user.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        return userMapper.toUserResponse(saveUser(user));
+    }
+
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        User user = currentActor();
+        ensureBcryptPasswordLength(request.getOldPassword());
+        ensureBcryptPasswordLength(request.getNewPassword());
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPasswordHash())) {
+            throw new AppException(ErrorCode.OLD_PASSWORD_INCORRECT);
+        }
+        ensurePasswordConfirmation(request.getNewPassword(), request.getConfirmPassword());
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setPasswordChangedAt(LocalDateTime.now(ZoneOffset.UTC));
+        user.setFailedLoginCount(0);
+        user.setLockedUntil(null);
+        user.setUpdatedBy(user);
+        user.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+
+        saveUser(user);
+        refreshTokenService.revokeAllUserRefreshTokens(user.getUsername());
+        log.info("Password changed successfully for user ID: {}", user.getId());
     }
 
     @Transactional
@@ -163,9 +219,6 @@ public class UserService {
         userRepository.save(user);
         refreshTokenService.revokeAllUserRefreshTokens(user.getUsername());
     }
-
-
-
     private boolean updatePasswordIfRequested(User user, UserUpdateRequest request) {
         String password = request.getPassword();
         String confirmation = request.getConfirmPassword();
@@ -231,6 +284,13 @@ public class UserService {
     private void ensurePasswordConfirmation(String password, String confirmation) {
         if (!Objects.equals(password, confirmation)) {
             throw new AppException(ErrorCode.PASSWORD_CONFIRMATION_MISMATCH);
+        }
+    }
+
+    private void ensureBcryptPasswordLength(String password) {
+        // BCrypt limits the UTF-8 byte length, while @Size counts Java characters.
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
         }
     }
 

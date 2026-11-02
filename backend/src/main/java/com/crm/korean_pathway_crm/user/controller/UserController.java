@@ -1,6 +1,8 @@
 package com.crm.korean_pathway_crm.user.controller;
 
 import com.crm.korean_pathway_crm.user.dto.ApiResponse;
+import com.crm.korean_pathway_crm.user.dto.ChangePasswordRequest;
+import com.crm.korean_pathway_crm.user.dto.MyInfoUpdateRequest;
 import com.crm.korean_pathway_crm.user.dto.UserCreationRequest;
 import com.crm.korean_pathway_crm.user.dto.UserResponse;
 import com.crm.korean_pathway_crm.user.dto.UserUpdateRequest;
@@ -44,14 +46,19 @@ public class UserController {
                 .build();
     }
 
-    // getMyInfo
     @GetMapping("/me")
-    public ApiResponse<UserResponse> getMyInfo(){
-        return  ApiResponse.<UserResponse>builder()
+    public ApiResponse<UserResponse> getMyInfo() {
+        return ApiResponse.<UserResponse>builder()
                 .result(userService.getMyInfo())
                 .build();
     }
-    //UpdateMyInfo
+
+    @PatchMapping("/me")
+    public ApiResponse<UserResponse> updateMyInfo(@Valid @RequestBody MyInfoUpdateRequest request) {
+        return ApiResponse.<UserResponse>builder()
+                .result(userService.updateMyInfo(request))
+                .build();
+    }
 
     @PutMapping("/{userId}")
     public ApiResponse<UserResponse> updateUser(
@@ -61,6 +68,14 @@ public class UserController {
          log.info("REST request to update user with ID: {}", userId);
         return ApiResponse.<UserResponse>builder()
                 .result(userService.updateUser(userId, request))
+                .build();
+    }
+    @PostMapping("/change-password")
+    public ApiResponse<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        log.info("REST request to change password");
+        userService.changePassword(request);
+        return ApiResponse.<Void>builder()
+                .message("Đổi mật khẩu thành công. Vui lòng đăng nhập lại")
                 .build();
     }
     @DeleteMapping("/{userId}")
