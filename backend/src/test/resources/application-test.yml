@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:crm_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+jwt:
+  # Test-only secret, never used by the application outside the test profile.
+  signer-key: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  issuer: crm-test
+  expiration: 3600
+  refresh-expiration: 604800

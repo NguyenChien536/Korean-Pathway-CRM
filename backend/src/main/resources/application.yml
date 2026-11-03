@@ -1,0 +1,56 @@
+server:
+  port: ${SERVER_PORT:8081}
+  servlet:
+    context-path: /crm-korean
+
+spring:
+  config:
+    import:
+      - optional:file:./backend/.local/jwt.properties
+      - optional:file:./.local/jwt.properties
+  application:
+    name: korean-pathway-crm
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:crm_korean}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-init-sql: "SET TIME ZONE 'UTC'"
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        type:
+          java_time_use_direct_jdbc: true
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+jwt:
+  signer-key: ${JWT_SIGNER_KEY:}
+  issuer: ${JWT_ISSUER:crm-korean}
+  # Token lifetimes in seconds: access token 1 hour; refresh token 7 days.
+  expiration: ${JWT_EXPIRATION:3600}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
