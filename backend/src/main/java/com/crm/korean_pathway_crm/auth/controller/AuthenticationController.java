@@ -3,7 +3,7 @@ package com.crm.korean_pathway_crm.auth.controller;
 import com.crm.korean_pathway_crm.auth.dto.AuthenticationRequest;
 import com.crm.korean_pathway_crm.auth.dto.AuthenticationResponse;
 import com.crm.korean_pathway_crm.auth.service.AuthenticationService;
-import com.crm.korean_pathway_crm.user.dto.ApiResponse;
+import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

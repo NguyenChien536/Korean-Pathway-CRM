@@ -1,4 +1,4 @@
-package com.crm.korean_pathway_crm.user.dto;
+package com.crm.korean_pathway_crm.user.dto.response;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

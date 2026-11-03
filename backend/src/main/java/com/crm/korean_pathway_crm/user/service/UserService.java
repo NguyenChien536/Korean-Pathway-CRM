@@ -1,25 +1,28 @@
 package com.crm.korean_pathway_crm.user.service;
 
 import com.crm.korean_pathway_crm.auth.service.RefreshTokenService;
+import com.crm.korean_pathway_crm.common.dto.PageResponse;
 import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import com.crm.korean_pathway_crm.role.entity.Role;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import com.crm.korean_pathway_crm.role.enums.SystemRoleCode;
 import com.crm.korean_pathway_crm.role.repository.RoleRepository;
-import com.crm.korean_pathway_crm.user.dto.ChangePasswordRequest;
-import com.crm.korean_pathway_crm.user.dto.MyInfoUpdateRequest;
-import com.crm.korean_pathway_crm.user.dto.UserCreationRequest;
-import com.crm.korean_pathway_crm.user.dto.UserResponse;
-import com.crm.korean_pathway_crm.user.dto.UserUpdateRequest;
+import com.crm.korean_pathway_crm.user.dto.request.*;
+import com.crm.korean_pathway_crm.user.dto.response.UserResponse;
 import com.crm.korean_pathway_crm.user.entity.User;
 import com.crm.korean_pathway_crm.user.mapper.UserMapper;
 import com.crm.korean_pathway_crm.user.repository.UserRepository;
+import com.crm.korean_pathway_crm.user.specification.UserSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -86,8 +89,10 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserResponse> getAllUsers() {
+    public PageResponse<UserResponse> getAllUsers(UserFilterRequest request) {
+        log.debug("Retrieving users in the system with pagination and filters");
         requirePermission("USERS.READ");
+        Specification<User> spec = Specification.where(UserSpecification.of(request));
         return userRepository.findAll(Sort.by(Sort.Direction.ASC, "username"))
                 .stream()
                 .map(userMapper::toUserResponse)

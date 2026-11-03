@@ -3,7 +3,7 @@ package com.crm.korean_pathway_crm.auth.config;
 import com.crm.korean_pathway_crm.auth.repository.InvalidatedTokenRepository;
 import com.crm.korean_pathway_crm.user.repository.UserRepository;
 import com.crm.korean_pathway_crm.user.entity.User;
-import com.crm.korean_pathway_crm.user.dto.ApiResponse;
+import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import jakarta.servlet.DispatcherType;

@@ -1,4 +1,4 @@
-package com.crm.korean_pathway_crm.user.dto;
+package com.crm.korean_pathway_crm.user.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;

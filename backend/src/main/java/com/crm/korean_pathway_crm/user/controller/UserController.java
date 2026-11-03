@@ -1,11 +1,11 @@
 package com.crm.korean_pathway_crm.user.controller;
 
-import com.crm.korean_pathway_crm.user.dto.ApiResponse;
-import com.crm.korean_pathway_crm.user.dto.ChangePasswordRequest;
-import com.crm.korean_pathway_crm.user.dto.MyInfoUpdateRequest;
-import com.crm.korean_pathway_crm.user.dto.UserCreationRequest;
-import com.crm.korean_pathway_crm.user.dto.UserResponse;
-import com.crm.korean_pathway_crm.user.dto.UserUpdateRequest;
+import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
+import com.crm.korean_pathway_crm.user.dto.request.ChangePasswordRequest;
+import com.crm.korean_pathway_crm.user.dto.request.MyInfoUpdateRequest;
+import com.crm.korean_pathway_crm.user.dto.request.UserCreationRequest;
+import com.crm.korean_pathway_crm.user.dto.response.UserResponse;
+import com.crm.korean_pathway_crm.user.dto.request.UserUpdateRequest;
 import com.crm.korean_pathway_crm.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

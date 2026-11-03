@@ -1,8 +1,8 @@
 package com.crm.korean_pathway_crm.user.mapper;
 
-import com.crm.korean_pathway_crm.user.dto.UserCreationRequest;
-import com.crm.korean_pathway_crm.user.dto.UserResponse;
-import com.crm.korean_pathway_crm.user.dto.UserUpdateRequest;
+import com.crm.korean_pathway_crm.user.dto.request.UserCreationRequest;
+import com.crm.korean_pathway_crm.user.dto.response.UserResponse;
+import com.crm.korean_pathway_crm.user.dto.request.UserUpdateRequest;
 import com.crm.korean_pathway_crm.user.entity.User;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
