@@ -11,6 +11,9 @@ import java.util.UUID;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserFilterRequest extends BaseFilterRequest {
+    /** true = tài khoản hoạt động, false = đã vô hiệu hóa, null = không lọc trạng thái. */
     Boolean status;
+
+    /** UUID của role cần lọc; null nghĩa là lấy mọi role. */
     UUID roleId;
 }

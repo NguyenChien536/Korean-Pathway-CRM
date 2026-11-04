@@ -1,18 +1,16 @@
 package com.crm.korean_pathway_crm.user.controller;
 
+import com.crm.korean_pathway_crm.common.dto.PageResponse;
+import com.crm.korean_pathway_crm.user.dto.request.*;
 import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
-import com.crm.korean_pathway_crm.user.dto.request.ChangePasswordRequest;
-import com.crm.korean_pathway_crm.user.dto.request.MyInfoUpdateRequest;
-import com.crm.korean_pathway_crm.user.dto.request.UserCreationRequest;
 import com.crm.korean_pathway_crm.user.dto.response.UserResponse;
-import com.crm.korean_pathway_crm.user.dto.request.UserUpdateRequest;
 import com.crm.korean_pathway_crm.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -31,10 +29,16 @@ public class UserController {
     }
 
     @GetMapping
-    public ApiResponse<List<UserResponse>> getAllUsers() {
+    public ApiResponse<PageResponse<UserResponse>> getAllUsers(@Valid @ModelAttribute UserFilterRequest request) {
         log.info("REST request to retrieve all users with pagination and filters");
-        return ApiResponse.<List<UserResponse>>builder()
-                .result(userService.getAllUsers())
+
+        // @ModelAttribute binds query parameters (page, size, search, ...) into this request DTO.
+        // @Valid applies its Bean Validation constraints before the service is invoked.
+        Page<UserResponse> page = userService.getAllUsers(request);
+
+        // Keep Spring's Page inside the application; expose the CRM's own stable page JSON shape.
+        return ApiResponse.<PageResponse<UserResponse>>builder()
+                .result(PageResponse.of(page))
                 .build();
     }
 

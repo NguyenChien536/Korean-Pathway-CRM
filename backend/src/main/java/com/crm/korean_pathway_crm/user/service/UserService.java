@@ -1,7 +1,6 @@
 package com.crm.korean_pathway_crm.user.service;
 
 import com.crm.korean_pathway_crm.auth.service.RefreshTokenService;
-import com.crm.korean_pathway_crm.common.dto.PageResponse;
 import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import com.crm.korean_pathway_crm.role.entity.Role;
@@ -33,7 +32,7 @@ import org.springframework.util.StringUtils;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -44,6 +43,13 @@ public class UserService {
     private static final String USERNAME_UNIQUE_INDEX = "uq_users_username_lower";
     private static final String EMAIL_UNIQUE_INDEX = "uq_users_email_lower";
     private static final String PHONE_UNIQUE_INDEX = "uq_users_phone";
+    private static final Map<String, String> USER_SORT_FIELDS = Map.of(
+            "username", "username",
+            "fullName", "fullName",
+            "email", "email",
+            "createdAt", "createdAt",
+            "status", "isActive"
+    );
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -89,14 +95,54 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<UserResponse> getAllUsers(UserFilterRequest request) {
+    public Page<UserResponse> getAllUsers(UserFilterRequest request) {
         log.debug("Retrieving users in the system with pagination and filters");
+
+        // Kiểm tra quyền ở service để mọi nơi gọi method này đều phải có quyền, không chỉ riêng controller.
         requirePermission("USERS.READ");
-        Specification<User> spec = Specification.where(UserSpecification.of(request));
-        return userRepository.findAll(Sort.by(Sort.Direction.ASC, "username"))
-                .stream()
-                .map(userMapper::toUserResponse)
-                .toList();
+
+        // Mặc định sắp xếp là quy tắc riêng của danh sách User, nên đặt ở đây thay vì lớp request dùng chung.
+        String sortBy = StringUtils.hasText(request.getSortBy())
+                ? request.getSortBy().trim()
+                : "username";
+
+        // Chỉ chấp nhận field nằm trong danh sách cho phép, không đưa trực tiếp tên field tùy ý từ client vào JPA.
+        // Tên "status" trên API được ánh xạ sang thuộc tính "isActive" của entity User.
+        String entityField = USER_SORT_FIELDS.get(sortBy);
+
+        if (entityField == null) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER);
+        }
+
+        // Chuyển chiều sắp xếp từ API sang kiểu Spring Data; mặc định đã thống nhất là tăng dần (ASC).
+        Sort.Direction sortDir = Sort.Direction.ASC;
+        if (StringUtils.hasText(request.getSortDir())) {
+            try {
+                sortDir = Sort.Direction.fromString(request.getSortDir().trim());
+            } catch (IllegalArgumentException exception) {
+                throw new AppException(ErrorCode.INVALID_PARAMETER);
+            }
+        }
+
+        // Thêm id làm tiêu chí phụ để các user trùng giá trị sort chính vẫn có thứ tự xác định.
+        Sort sort = Sort.by(
+                new Sort.Order(sortDir, entityField),
+                Sort.Order.asc("id")
+        );
+
+        // Pageable mô tả trang, số dòng tối đa và thứ tự; nó không chứa điều kiện search/filter.
+        Pageable pageable = PageRequest.of(
+                request.getPage(),
+                request.getSize(),
+                sort
+        );
+
+        // Specification tạo các điều kiện WHERE tùy chọn; repository áp dụng chúng trước khi phân trang.
+        Specification<User> spec = UserSpecification.of(request);
+        Page<User> page = userRepository.findAll(spec, pageable);
+
+        // Chỉ chuyển các entity thuộc trang hiện tại sang DTO an toàn; Page.map vẫn giữ metadata phân trang.
+        return page.map(userMapper::toUserResponse);
     }
 
     @Transactional

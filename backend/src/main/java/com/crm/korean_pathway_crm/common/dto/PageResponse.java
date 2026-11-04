@@ -12,33 +12,34 @@ import java.util.List;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PageResponse<T> {
-    /** Danh sách kết quả của trang hiện tại. */
+    /** Các DTO trong trang hiện tại; không chứa entity JPA. */
     List<T> content;
 
-    /** Số trang hiện tại (0-indexed). */
+    /** Chỉ số trang hiện tại, đánh số từ 0 như Spring Data. */
     int page;
 
-    /** Kích thước trang (số phần tử tối đa mỗi trang). */
+    /** Kích thước trang được yêu cầu, có thể lớn hơn số phần tử thực tế ở trang cuối. */
     int size;
 
-    /** Tổng số phần tử khớp với điều kiện filter. */
+    /** Tổng số bản ghi khớp filter trên DB, không phải content.size(). */
     long totalElements;
 
     /** Tổng số trang. */
     int totalPages;
 
-    /** True nếu đây là trang đầu tiên. */
+    /** True nếu trang hiện tại là trang đầu. */
     boolean first;
 
-    /** True nếu đây là trang cuối cùng. */
+    /** True nếu không còn trang kết quả tiếp theo. Trang rỗng cũng được Spring xem là last. */
     boolean last;
 
     /**
-     * Tạo PagedResponse từ Spring Data Page object.
+     * Chuyển Page nội bộ của Spring thành cấu trúc JSON mà API CRM sở hữu.
+     * Việc chuyển đổi này không chạy thêm truy vấn; dữ liệu đã được repository lấy.
      *
      * @param springPage kết quả từ repository.findAll(spec, pageable)
      * @param <T>        kiểu dữ liệu response
-     * @return PagedResponse được điền đầy đủ thông tin phân trang
+     * @return PageResponse gồm danh sách DTO và metadata phân trang
      */
     public static <T> PageResponse<T> of(org.springframework.data.domain.Page<T> springPage) {
         return PageResponse.<T>builder()
