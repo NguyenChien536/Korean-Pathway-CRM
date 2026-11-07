@@ -40,4 +40,6 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
     @Override
     @EntityGraph(attributePaths = "role")
     Page<User> findAll(Specification<User> specification, Pageable pageable);
+
+    Optional<Object> findByEmail(String mail);
 }

@@ -107,7 +107,7 @@ public class SecurityConfig {
     @Bean
     public BearerTokenResolver bearerTokenResolver() {
         DefaultBearerTokenResolver resolver = new DefaultBearerTokenResolver();
-        Set<String> credentialEndpoints = Set.of("/api/v1/auth/log-in", "/api/v1/auth/refresh", "/api/v1/auth/logout");
+        Set<String> credentialEndpoints = Set.of("/api/v1/auth/token", "/api/v1/auth/refresh", "/api/v1/auth/logout");
         return request -> {
             // Refresh uses its body credential; logout verifies even expired access tokens in the service.
             if ("POST".equals(request.getMethod()) && credentialEndpoints.contains(request.getServletPath())) {
@@ -157,7 +157,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST,
-                                "/api/v1/auth/log-in", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
+                                "/api/v1/auth/token", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(entryPoint).accessDeniedHandler(deniedHandler))

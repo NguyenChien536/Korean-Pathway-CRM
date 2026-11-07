@@ -1,5 +1,6 @@
 package com.crm.korean_pathway_crm.role.entity;
 
+import com.crm.korean_pathway_crm.permission.Permission;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -7,6 +8,8 @@ import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -56,4 +59,12 @@ public class Role {
     void onUpdate() {
         updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
+    @ManyToMany(fetch =  FetchType.EAGER)
+    @JoinTable(
+            name = "role_permissions",
+            joinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"),
+            inverseJoinColumns = @JoinColumn(name = "permission_id", referencedColumnName = "id")
+    )
+    @Builder.Default
+    Set<Permission> permissions = new HashSet<>();
 }

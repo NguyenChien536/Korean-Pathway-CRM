@@ -3,6 +3,8 @@ package com.crm.korean_pathway_crm.auth.service;
 import com.crm.korean_pathway_crm.auth.dto.AuthenticationRequest;
 import com.crm.korean_pathway_crm.auth.dto.AuthenticationResponse;
 import com.crm.korean_pathway_crm.auth.config.JwtProperties;
+import com.crm.korean_pathway_crm.auth.dto.IntrospectRequest;
+import com.crm.korean_pathway_crm.auth.dto.IntrospectResponse;
 import com.crm.korean_pathway_crm.auth.entity.InvalidatedToken;
 import com.crm.korean_pathway_crm.auth.entity.RefreshToken;
 import com.crm.korean_pathway_crm.auth.repository.InvalidatedTokenRepository;
@@ -25,6 +27,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -48,6 +51,16 @@ public class AuthenticationService {
     RefreshTokenService refreshTokenService;
     InvalidatedTokenRepository invalidatedTokenRepository;
 
+    public IntrospectResponse introspect(IntrospectRequest request) throws JOSEException, ParseException {
+        var token = request.getToken();
+        JWSVerifier verifier = new MACVerifier(jwtProperties.getSignerKey().getBytes(StandardCharsets.UTF_8));
+        SignedJWT signedJWT = SignedJWT.parse(token);
+        Date expiryTime = signedJWT.getJWTClaimsSet().getExpirationTime();
+        var verified = signedJWT.verify(verifier);
+        return IntrospectResponse.builder()
+                .valid(verified && expiryTime.after(new Date()))
+                .build();
+    }
     // Sinh Access Token có gắn JTI duy nhất và Subject là User ID (UUID)
     private String generateToken(User user, String jti, Instant issuedAt, Instant expiresAt) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);

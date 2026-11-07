@@ -1,0 +1,6 @@
+spring:
+  flyway:
+    # Chỉ profile dev mới nạp dữ liệu demo; môi trường mặc định không tạo tài khoản mẫu.
+    locations:
+      - classpath:db/migration
+      - classpath:db/demo
