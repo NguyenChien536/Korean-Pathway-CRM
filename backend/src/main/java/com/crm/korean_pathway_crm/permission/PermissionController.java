@@ -1,5 +1,6 @@
 package com.crm.korean_pathway_crm.permission;
 
+import com.crm.korean_pathway_crm.permission.dto.PermissionResponse;
 import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,7 +17,7 @@ public class PermissionController {
     private final PermissionService permissionService;
 
     @GetMapping
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAuthority('CONFIGURATION.MANAGE')")
     public ApiResponse<List<PermissionResponse>> getAll() {
         return ApiResponse.<List<PermissionResponse>>builder()
                 .result(permissionService.getAll())

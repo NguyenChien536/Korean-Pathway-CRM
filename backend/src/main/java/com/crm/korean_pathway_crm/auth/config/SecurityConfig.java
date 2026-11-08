@@ -5,6 +5,7 @@ import com.crm.korean_pathway_crm.user.repository.UserRepository;
 import com.crm.korean_pathway_crm.user.entity.User;
 import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
+import com.crm.korean_pathway_crm.role.repository.RoleRepository;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,6 +29,9 @@ import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -41,6 +45,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.Set;
+import java.util.Collection;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 
 @Configuration
 @EnableWebSecurity
@@ -139,11 +146,23 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+    public JwtAuthenticationConverter jwtAuthenticationConverter(RoleRepository roles) {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
         authorities.setAuthorityPrefix("");
+        Converter<Jwt, Collection<GrantedAuthority>> permissionAwareAuthorities = jwt -> {
+            Set<GrantedAuthority> resolved = new LinkedHashSet<>(authorities.convert(jwt));
+            try {
+                UUID roleId = UUID.fromString(jwt.getClaimAsString("roleId"));
+                roles.findPermissionCodesByRoleId(roleId).stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .forEach(resolved::add);
+            } catch (IllegalArgumentException | NullPointerException exception) {
+                // The JWT validator rejects malformed/missing role claims before conversion.
+            }
+            return new ArrayList<>(resolved);
+        };
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authorities);
+        converter.setJwtGrantedAuthoritiesConverter(permissionAwareAuthorities);
         return converter;
     }
 

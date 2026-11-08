@@ -1,4 +1,4 @@
-package com.crm.korean_pathway_crm.permission;
+package com.crm.korean_pathway_crm.permission.dto;
 
 import lombok.AccessLevel;
 import lombok.Builder;

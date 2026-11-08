@@ -26,4 +26,12 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
             """, nativeQuery = true)
     boolean hasPermission(@Param("roleId") UUID roleId,
                           @Param("permissionCode") String permissionCode);
+
+    @Query(value = """
+            SELECT p.code
+            FROM role_permissions rp
+            JOIN permissions p ON p.id = rp.permission_id
+            WHERE rp.role_id = :roleId
+            """, nativeQuery = true)
+    java.util.Set<String> findPermissionCodesByRoleId(@Param("roleId") UUID roleId);
 }

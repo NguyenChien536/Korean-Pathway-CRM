@@ -24,6 +24,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,8 +59,9 @@ public class UserService {
     private final RefreshTokenService refreshTokenService;
 
     @Transactional
+    @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public UserResponse createUser(UserCreationRequest request) {
-        User actor = requirePermission("USERS.MANAGE");
+        User actor = currentActor();
         String username = normalizeRequired(request.getUsername());
         String email = normalizeRequired(request.getEmail());
         String phone = normalizeOptional(request.getPhone());
@@ -89,17 +91,15 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('USERS.READ')")
     public UserResponse getUserById(UUID id) {
-        requirePermission("USERS.READ");
         return userMapper.toUserResponse(findUser(id));
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('USERS.READ')")
     public Page<UserResponse> getAllUsers(UserFilterRequest request) {
         log.debug("Retrieving users in the system with pagination and filters");
-
-        // Kiểm tra quyền ở service để mọi nơi gọi method này đều phải có quyền, không chỉ riêng controller.
-        requirePermission("USERS.READ");
 
         // Mặc định sắp xếp là quy tắc riêng của danh sách User, nên đặt ở đây thay vì lớp request dùng chung.
         String sortBy = StringUtils.hasText(request.getSortBy())
@@ -146,8 +146,9 @@ public class UserService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public UserResponse updateUser(UUID id, UserUpdateRequest request) {
-        User actor = requirePermission("USERS.MANAGE");
+        User actor = currentActor();
         User user = findUser(id);
 
         if (request.getUsername() != null) {
@@ -251,8 +252,9 @@ public class UserService {
     }
 
     @Transactional
+    @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public void deleteUser(UUID userId) {
-        User actor = requirePermission("USERS.MANAGE");
+        User actor = currentActor();
         User user = findUser(userId);
 
         // Keep audit and business-history references intact; disable the account instead of deleting it.
@@ -286,14 +288,6 @@ public class UserService {
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
         return true;
-    }
-
-    private User requirePermission(String permissionCode) {
-        User actor = currentActor();
-        if (!roleRepository.hasPermission(actor.getRole().getId(), permissionCode)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-        return actor;
     }
 
     private User currentActor() {

@@ -285,7 +285,7 @@ class UserSelfServiceIntegrationTest {
     }
 
     private HttpResponse<String> login(String username, String password) throws Exception {
-        return request("POST", "/api/v1/auth/log-in", json.writeValueAsString(Map.of("username", username, "password", password)), null);
+        return request("POST", "/api/v1/auth/token", json.writeValueAsString(Map.of("username", username, "password", password)), null);
     }
 
     private HttpResponse<String> request(String method, String path, String body, String token) throws Exception {
