@@ -27,7 +27,7 @@ public class ApplicationInitConfig {
     PasswordEncoder passwordEncoder;
     RoleRepository roleRepository;
     @Bean
-    @Profile("dev")
+    @Profile({"dev"})
     ApplicationRunner applicationRunner (UserRepository userRepository){
         return args ->{
             boolean adminExists = userRepository.findByUsernameIgnoreCase("admin").isPresent()

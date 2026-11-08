@@ -25,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -51,6 +52,7 @@ class AuthenticationDateTimeTest {
     private RefreshTokenService refreshTokenService;
     @Mock
     private InvalidatedTokenRepository invalidatedTokenRepository;
+    @Mock private JwtDecoder jwtDecoder;
 
     private AuthenticationService service;
 
@@ -59,7 +61,7 @@ class AuthenticationDateTimeTest {
         JwtProperties properties = new JwtProperties();
         properties.setSignerKey(TEST_SIGNING_KEY);
         service = new AuthenticationService(properties, userRepository, passwordEncoder,
-                refreshTokenService, invalidatedTokenRepository);
+                refreshTokenService, invalidatedTokenRepository, jwtDecoder);
     }
 
     @Test

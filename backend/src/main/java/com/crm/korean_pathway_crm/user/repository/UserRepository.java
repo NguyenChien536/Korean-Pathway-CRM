@@ -13,6 +13,9 @@ import org.springframework.data.jpa.domain.Specification;
 
 public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificationExecutor<User> {
     boolean existsByRoleId(UUID roleId);
+
+    @Query("select count(u) from User u where u.isActive = true and u.role.code = :roleCode")
+    long countActiveByRoleCode(@Param("roleCode") String roleCode);
     boolean existsByUsernameIgnoreCase(String username);
 
     boolean existsByEmailIgnoreCase(String email);

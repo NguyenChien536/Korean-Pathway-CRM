@@ -24,10 +24,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -50,17 +51,23 @@ public class AuthenticationService {
     PasswordEncoder passwordEncoder;
     RefreshTokenService refreshTokenService;
     InvalidatedTokenRepository invalidatedTokenRepository;
+    JwtDecoder jwtDecoder;
 
-    public IntrospectResponse introspect(IntrospectRequest request) throws JOSEException, ParseException {
-        var token = request.getToken();
-        JWSVerifier verifier = new MACVerifier(jwtProperties.getSignerKey().getBytes(StandardCharsets.UTF_8));
-        SignedJWT signedJWT = SignedJWT.parse(token);
-        Date expiryTime = signedJWT.getJWTClaimsSet().getExpirationTime();
-        var verified = signedJWT.verify(verifier);
+    public IntrospectResponse introspect(IntrospectRequest request) {
+        boolean valid;
+
+        try {
+            jwtDecoder.decode(request.getToken());
+            valid = true;
+        } catch (JwtException exception) {
+            valid = false;
+        }
+
         return IntrospectResponse.builder()
-                .valid(verified && expiryTime.after(new Date()))
+                .valid(valid)
                 .build();
     }
+
     // Sinh Access Token có gắn JTI duy nhất và Subject là User ID (UUID)
     private String generateToken(User user, String jti, Instant issuedAt, Instant expiresAt) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);

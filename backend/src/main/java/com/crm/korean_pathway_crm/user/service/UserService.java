@@ -28,6 +28,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -58,9 +59,10 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public UserResponse createUser(UserCreationRequest request) {
+        lockAdminMembership();
         User actor = currentActor();
         String username = normalizeRequired(request.getUsername());
         String email = normalizeRequired(request.getEmail());
@@ -145,12 +147,14 @@ public class UserService {
         return page.map(userMapper::toUserResponse);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public UserResponse updateUser(UUID id, UserUpdateRequest request) {
+        lockAdminMembership();
         User actor = currentActor();
         User user = findUser(id);
 
+        ensureCanManageUser(actor, user);
         if (request.getUsername() != null) {
             ensureUsernameAvailable(normalizeRequired(request.getUsername()), id);
         }
@@ -165,6 +169,9 @@ public class UserService {
         boolean roleChanged = false;
         if (request.getRoleId() != null && !request.getRoleId().equals(user.getRole().getId())) {
             Role role = findAssignableRole(request.getRoleId(), actor);
+            if (!SystemRoleCode.SYSTEM_ADMIN.name().equals(role.getCode())) {
+                ensureCanRemoveActiveAdmin(user);
+            }
             user.setRole(role);
             roleChanged = true;
         }
@@ -251,11 +258,14 @@ public class UserService {
         log.info("Password changed successfully for user ID: {}", user.getId());
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public void deleteUser(UUID userId) {
+        lockAdminMembership();
         User actor = currentActor();
         User user = findUser(userId);
+
+        ensureCanManageUser(actor, user);
 
         // Keep audit and business-history references intact; disable the account instead of deleting it.
         if (actor.getId().equals(user.getId())) {
@@ -266,6 +276,7 @@ public class UserService {
             return;
         }
 
+        ensureCanRemoveActiveAdmin(user);
         user.setActive(false);
         user.setUpdatedBy(actor);
         user.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
@@ -315,17 +326,37 @@ public class UserService {
     }
 
     private Role findAssignableRole(UUID roleId, User actor) {
+        // Cấp role có thể cấp thêm quyền; hiện chỉ system admin được thực hiện.
+        if (!isSystemAdmin(actor)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
         if (role.getStatus() != RoleStatus.ACTIVE) {
             throw new AppException(ErrorCode.ROLE_INACTIVE);
         }
-        if (SystemRoleCode.SYSTEM_ADMIN.name().equals(role.getCode()) && !isSystemAdmin(actor)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
         return role;
     }
 
+    private void ensureCanManageUser(User actor, User target) {
+        if (isSystemAdmin(target) && !isSystemAdmin(actor)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    private void lockAdminMembership() {
+        // Mọi thao tác tạo, đổi role, vô hiệu hóa user lấy cùng khóa này trước
+        // khi đọc actor/target và đếm admin. Khóa được giữ đến cuối transaction.
+        roleRepository.findByCodeForUpdate(SystemRoleCode.SYSTEM_ADMIN.name())
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+    }
+
+    private void ensureCanRemoveActiveAdmin(User target) {
+        if (target.isActive() && isSystemAdmin(target)
+                && userRepository.countActiveByRoleCode(SystemRoleCode.SYSTEM_ADMIN.name()) <= 1) {
+            throw new AppException(ErrorCode.LAST_ACTIVE_ADMIN_REQUIRED);
+        }
+    }
     private void ensurePasswordConfirmation(String password, String confirmation) {
         if (!Objects.equals(password, confirmation)) {
             throw new AppException(ErrorCode.PASSWORD_CONFIRMATION_MISMATCH);

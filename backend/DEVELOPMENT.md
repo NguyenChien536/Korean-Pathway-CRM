@@ -19,6 +19,8 @@ Flyway then applies the repeatable demo migration to create three fictional peop
 
 These credentials are public and intended only for a disposable local development database. Do not activate the `dev` profile against a shared, staging, or production database. Do not reuse this password for a real account.
 
+Once a database has run `R__seed_demo_data.sql`, keep the demo location visible to Flyway when using that database. Starting without the `dev` profile hides `db/demo` and can fail validation with `Detected applied migration not resolved locally: seed demo data`. In IntelliJ, activate `dev` for the local demo database (Active profiles, or program argument `--spring.profiles.active=dev`). To run without demo migrations, use a separate database initialized from the normal migration location. An existing history entry is not removed by switching profiles; `repair` is not the appropriate first action when the file still exists and the problem is its location.
+
 ## Create a user through the API
 
 First log in as the local demo administrator:
@@ -63,6 +65,38 @@ Content-Type: application/json
 ```
 
 The service checks `USERS.MANAGE`, validates unique username/email/phone and password confirmation, resolves the role, hashes the password with BCrypt, and records the current actor in the audit fields. There is no public self-signup endpoint.
+
+Role assignment is restricted to `SYSTEM_ADMIN`, including the initial role of a new user. A delegated user manager may edit ordinary users, but cannot reset/deactivate system administrators or grant roles. Self-deactivation is forbidden. Removing the last active system administrator returns `409` with code `1014`.
+
+User-management mutations acquire a write lock on the `SYSTEM_ADMIN` role row before reading account state. Every future flow that changes administrator membership must follow the same lock protocol. This intentionally serializes those mutations for this single-organization CRM. `User` uses dynamic updates so a concurrent profile-only write does not restore a stale role or active flag.
+
+## Verify security policies
+
+Run the suite against the default in-memory test database:
+
+```powershell
+.\mvnw.cmd test
+```
+
+`SecurityPolicyIntegrationTest` covers delegated-manager restrictions, administrator membership, concurrent self-demotion, and introspection after token invalidation. Its database is isolated from the other test classes.
+
+To exercise the same cases with Flyway and PostgreSQL, use a dedicated disposable database. For example, start a container with a test-only password and inspect its random local port:
+
+```powershell
+docker run --rm --detach --name crm-policy-check -e POSTGRES_PASSWORD=policy_test_only -e POSTGRES_DB=crm_policy_test -p 127.0.0.1::5432 postgres:16-alpine
+docker port crm-policy-check 5432
+```
+
+Wait until `docker exec crm-policy-check pg_isready -U postgres -d crm_policy_test` reports readiness, then replace `<port>` with the reported port:
+
+```powershell
+$env:POLICY_TEST_DB_URL = "jdbc:postgresql://127.0.0.1:<port>/crm_policy_test"
+.\mvnw.cmd "-Dtest=SecurityPolicyIntegrationTest" "-Dspring.datasource.driver-class-name=org.postgresql.Driver" "-Dspring.datasource.username=postgres" "-Dspring.datasource.password=policy_test_only" "-Dspring.jpa.hibernate.ddl-auto=validate" "-Dspring.flyway.enabled=true" test
+Remove-Item Env:POLICY_TEST_DB_URL
+docker stop crm-policy-check
+```
+
+The policy test clears users and tokens in its test database between cases. Use only a disposable test database for this command.
 
 ## Migration convention
 

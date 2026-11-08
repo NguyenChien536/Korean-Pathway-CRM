@@ -6,7 +6,6 @@ import com.crm.korean_pathway_crm.auth.dto.IntrospectRequest;
 import com.crm.korean_pathway_crm.auth.dto.IntrospectResponse;
 import com.crm.korean_pathway_crm.auth.service.AuthenticationService;
 import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
-import com.nimbusds.jose.JOSEException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -18,7 +17,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.text.ParseException;
 
 
 @RestController
@@ -37,7 +35,7 @@ public class AuthenticationController {
         return tokenResponse(authenticationService.authenticate(request));
     }
     @PostMapping("/introspect")
-    public ApiResponse<IntrospectResponse> introspect( @RequestBody IntrospectRequest request) throws ParseException, JOSEException {
+    public ApiResponse<IntrospectResponse> introspect(@Valid @RequestBody IntrospectRequest request) {
         var result = authenticationService.introspect(request);
         return ApiResponse.<IntrospectResponse>builder()
                 .result(result)
