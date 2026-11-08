@@ -3,6 +3,8 @@ package com.crm.korean_pathway_crm.auth.service;
 import com.crm.korean_pathway_crm.auth.dto.AuthenticationRequest;
 import com.crm.korean_pathway_crm.auth.dto.AuthenticationResponse;
 import com.crm.korean_pathway_crm.auth.config.JwtProperties;
+import com.crm.korean_pathway_crm.auth.dto.IntrospectRequest;
+import com.crm.korean_pathway_crm.auth.dto.IntrospectResponse;
 import com.crm.korean_pathway_crm.auth.entity.InvalidatedToken;
 import com.crm.korean_pathway_crm.auth.entity.RefreshToken;
 import com.crm.korean_pathway_crm.auth.repository.InvalidatedTokenRepository;
@@ -22,6 +24,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +51,22 @@ public class AuthenticationService {
     PasswordEncoder passwordEncoder;
     RefreshTokenService refreshTokenService;
     InvalidatedTokenRepository invalidatedTokenRepository;
+    JwtDecoder jwtDecoder;
+
+    public IntrospectResponse introspect(IntrospectRequest request) {
+        boolean valid;
+
+        try {
+            jwtDecoder.decode(request.getToken());
+            valid = true;
+        } catch (JwtException exception) {
+            valid = false;
+        }
+
+        return IntrospectResponse.builder()
+                .valid(valid)
+                .build();
+    }
 
     // Sinh Access Token có gắn JTI duy nhất và Subject là User ID (UUID)
     private String generateToken(User user, String jti, Instant issuedAt, Instant expiresAt) {

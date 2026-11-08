@@ -3,8 +3,9 @@ package com.crm.korean_pathway_crm.auth.config;
 import com.crm.korean_pathway_crm.auth.repository.InvalidatedTokenRepository;
 import com.crm.korean_pathway_crm.user.repository.UserRepository;
 import com.crm.korean_pathway_crm.user.entity.User;
-import com.crm.korean_pathway_crm.user.dto.ApiResponse;
+import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
+import com.crm.korean_pathway_crm.role.repository.RoleRepository;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,6 +29,9 @@ import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -41,6 +45,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.Set;
+import java.util.Collection;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 
 @Configuration
 @EnableWebSecurity
@@ -107,7 +114,7 @@ public class SecurityConfig {
     @Bean
     public BearerTokenResolver bearerTokenResolver() {
         DefaultBearerTokenResolver resolver = new DefaultBearerTokenResolver();
-        Set<String> credentialEndpoints = Set.of("/api/v1/auth/log-in", "/api/v1/auth/refresh", "/api/v1/auth/logout");
+        Set<String> credentialEndpoints = Set.of("/api/v1/auth/token", "/api/v1/auth/refresh", "/api/v1/auth/logout");
         return request -> {
             // Refresh uses its body credential; logout verifies even expired access tokens in the service.
             if ("POST".equals(request.getMethod()) && credentialEndpoints.contains(request.getServletPath())) {
@@ -139,11 +146,23 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+    public JwtAuthenticationConverter jwtAuthenticationConverter(RoleRepository roles) {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
         authorities.setAuthorityPrefix("");
+        Converter<Jwt, Collection<GrantedAuthority>> permissionAwareAuthorities = jwt -> {
+            Set<GrantedAuthority> resolved = new LinkedHashSet<>(authorities.convert(jwt));
+            try {
+                UUID roleId = UUID.fromString(jwt.getClaimAsString("roleId"));
+                roles.findPermissionCodesByRoleId(roleId).stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .forEach(resolved::add);
+            } catch (IllegalArgumentException | NullPointerException exception) {
+                // The JWT validator rejects malformed/missing role claims before conversion.
+            }
+            return new ArrayList<>(resolved);
+        };
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authorities);
+        converter.setJwtGrantedAuthoritiesConverter(permissionAwareAuthorities);
         return converter;
     }
 
@@ -157,7 +176,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.POST,
-                                "/api/v1/auth/log-in", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
+                                "/api/v1/auth/token", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(entryPoint).accessDeniedHandler(deniedHandler))

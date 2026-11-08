@@ -1,4 +1,4 @@
-package com.crm.korean_pathway_crm.user.dto;
+package com.crm.korean_pathway_crm.user.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;

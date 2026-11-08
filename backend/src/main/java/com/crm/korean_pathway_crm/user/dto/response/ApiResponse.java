@@ -1,4 +1,4 @@
-package com.crm.korean_pathway_crm.user.dto;
+package com.crm.korean_pathway_crm.user.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;

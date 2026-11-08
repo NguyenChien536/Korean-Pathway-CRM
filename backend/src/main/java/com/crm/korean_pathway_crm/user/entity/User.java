@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
+// Cập nhật hồ sơ chỉ ghi field đã đổi, tránh ghi lại role/active từ snapshot cũ.
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "users")
 @Getter
 @Setter

@@ -1,5 +1,8 @@
 package com.crm.korean_pathway_crm.role.service.impl;
 
+import com.crm.korean_pathway_crm.permission.PermissionMapper;
+import com.crm.korean_pathway_crm.permission.RolePermissionRepository;
+import com.crm.korean_pathway_crm.permission.dto.PermissionResponse;
 import com.crm.korean_pathway_crm.role.dto.RoleDto;
 import com.crm.korean_pathway_crm.role.dto.RoleRequest;
 import com.crm.korean_pathway_crm.role.entity.Role;
@@ -29,10 +32,12 @@ public class RoleServiceImpl implements RoleService {
     private final RoleRepository roleRepository;
     private final RoleMapper roleMapper;
     private final UserRepository userRepository;
+    private final RolePermissionRepository rolePermissionRepository;
+    private final PermissionMapper permissionMapper;
 
     @Override
     @Transactional
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAuthority('CONFIGURATION.MANAGE')")
     public RoleDto createRole(RoleRequest request) {
         String code = request.getCode().trim().toUpperCase(Locale.ROOT);
         if (roleRepository.existsByCodeIgnoreCase(code)) {
@@ -48,7 +53,7 @@ public class RoleServiceImpl implements RoleService {
     }
     @Override
     @Transactional
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAuthority('CONFIGURATION.MANAGE')")
     public RoleDto updateRole(UUID id, RoleRequest request) {
         Role role = findRole(id);
         if (!role.getCode().equalsIgnoreCase(request.getCode().trim())) {
@@ -77,9 +82,23 @@ public class RoleServiceImpl implements RoleService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('CONFIGURATION.MANAGE')")
+    @Override
+    public List<PermissionResponse> getRolePermissions(UUID roleId) {
+        // Kiểm tra role tồn tại, dùng lại helper đã có.
+        findRole(roleId);
+
+        // Lấy permission của role và chuyển từng entity thành DTO.
+        return rolePermissionRepository.findPermissionsByRoleId(roleId)
+                .stream()
+                .map(permissionMapper::toResponse)
+                .toList();
+    }
+
     @Override
     @Transactional
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    @PreAuthorize("hasAuthority('CONFIGURATION.MANAGE')")
     public void deleteRole(UUID id) {
         Role role = findRole(id);
         if (role.isSystem()) {

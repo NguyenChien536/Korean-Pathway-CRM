@@ -4,6 +4,11 @@ import com.crm.korean_pathway_crm.auth.repository.RefreshTokenRepository;
 import com.crm.korean_pathway_crm.auth.config.JwtProperties;
 import com.crm.korean_pathway_crm.auth.entity.InvalidatedToken;
 import com.crm.korean_pathway_crm.auth.repository.InvalidatedTokenRepository;
+import com.crm.korean_pathway_crm.permission.Permission;
+import com.crm.korean_pathway_crm.permission.PermissionRepository;
+import com.crm.korean_pathway_crm.permission.RolePermission;
+import com.crm.korean_pathway_crm.permission.RolePermissionId;
+import com.crm.korean_pathway_crm.permission.RolePermissionRepository;
 import com.crm.korean_pathway_crm.scheduler.TokenCleanupScheduler;
 import com.crm.korean_pathway_crm.role.entity.Role;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
@@ -48,6 +53,8 @@ class AuthenticationFlowIntegrationTest {
     @Autowired private Environment environment;
     @Autowired private UserRepository users;
     @Autowired private RoleRepository roles;
+    @Autowired private PermissionRepository permissions;
+    @Autowired private RolePermissionRepository rolePermissions;
     @Autowired private RefreshTokenRepository refreshTokens;
     @Autowired private PasswordEncoder encoder;
     @Autowired private JwtProperties jwtProperties;
@@ -92,7 +99,7 @@ class AuthenticationFlowIntegrationTest {
         User other = users.saveAndFlush(User.builder()
                 .username("other-" + suffix).email(suffix + "@example.com").fullName("Other User")
                 .passwordHash(encoder.encode("Password1!")).role(role).createdAt(now).updatedAt(now).build());
-        String secondAccess = (String) result(post("/api/v1/auth/log-in",
+        String secondAccess = (String) result(post("/api/v1/auth/token",
                 Map.of("username", other.getUsername(), "password", "Password1!"), null)).get("accessToken");
         assertThat(result(currentProfile(secondAccess))).containsEntry("id", other.getId().toString())
                 .containsEntry("username", other.getUsername());
@@ -240,7 +247,7 @@ class AuthenticationFlowIntegrationTest {
     @Test
     void failedLoginsAreCommittedAndExpiredLockStartsANewAttemptWindow() throws Exception {
         for (int attempt = 0; attempt < 5; attempt++) {
-            assertThat(post("/api/v1/auth/log-in", Map.of("username", user.getUsername(), "password", "Wrong1!"), null)
+            assertThat(post("/api/v1/auth/token", Map.of("username", user.getUsername(), "password", "Wrong1!"), null)
                     .statusCode()).isEqualTo(401);
         }
         User locked = users.findById(user.getId()).orElseThrow();
@@ -250,7 +257,7 @@ class AuthenticationFlowIntegrationTest {
 
         locked.setLockedUntil(LocalDateTime.now(ZoneOffset.UTC).minusSeconds(1));
         users.saveAndFlush(locked);
-        assertThat(post("/api/v1/auth/log-in", Map.of("username", user.getUsername(), "password", "Wrong1!"), null)
+        assertThat(post("/api/v1/auth/token", Map.of("username", user.getUsername(), "password", "Wrong1!"), null)
                 .statusCode()).isEqualTo(401);
         User afterUnlock = users.findById(user.getId()).orElseThrow();
         assertThat(afterUnlock.getFailedLoginCount()).isEqualTo(1);
@@ -306,7 +313,7 @@ class AuthenticationFlowIntegrationTest {
     }
 
     private HttpResponse<String> login() throws Exception {
-        return post("/api/v1/auth/log-in", Map.of("username", user.getUsername(), "password", "Password1!"), null);
+        return post("/api/v1/auth/token", Map.of("username", user.getUsername(), "password", "Password1!"), null);
     }
 
     @Test
@@ -331,6 +338,24 @@ class AuthenticationFlowIntegrationTest {
     void adminGetsSpecificErrorsForDuplicateProtectedAndAssignedRoles() throws Exception {
         Role admin = roles.findAll().stream().filter(value -> value.getCode().equals("SYSTEM_ADMIN")).findFirst()
                 .orElseGet(() -> roles.saveAndFlush(Role.builder().code("SYSTEM_ADMIN").name("Admin").isSystem(true).build()));
+        Permission configurationPermission = permissions.findAll().stream()
+                .filter(value -> value.getCode().equals("CONFIGURATION.MANAGE"))
+                .findFirst()
+                .orElseGet(() -> {
+                    Permission permission = new Permission();
+                    permission.setCode("CONFIGURATION.MANAGE");
+                    permission.setName("Manage CRM configuration");
+                    permission.setModule("CONFIGURATION");
+                    return permissions.saveAndFlush(permission);
+                });
+        RolePermissionId linkId = new RolePermissionId(admin.getId(), configurationPermission.getId());
+        if (!rolePermissions.existsById(linkId)) {
+            RolePermission link = new RolePermission();
+            link.setRolePermissionId(linkId);
+            link.setRole(admin);
+            link.setPermission(configurationPermission);
+            rolePermissions.saveAndFlush(link);
+        }
         user.setRole(admin);
         users.saveAndFlush(user);
         String access = (String) result(login()).get("accessToken");
@@ -338,7 +363,10 @@ class AuthenticationFlowIntegrationTest {
 
         HttpResponse<String> created = post("/api/v1/roles", Map.of("code", code, "name", " Custom role "), access);
         assertThat(created.statusCode()).withFailMessage(created.body()).isEqualTo(201);
-        Map<String, Object> roleBody = json.readValue(created.body(), Map.class);
+        Map<String, Object> createdEnvelope = json.readValue(created.body(), Map.class);
+        assertThat(createdEnvelope).containsEntry("code", 1000);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> roleBody = (Map<String, Object>) createdEnvelope.get("result");
         assertThat(roleBody.get("code")).isEqualTo(code.toUpperCase(java.util.Locale.ROOT));
         assertThat(roleBody.get("name")).isEqualTo("Custom role");
         String roleId = (String) roleBody.get("id");

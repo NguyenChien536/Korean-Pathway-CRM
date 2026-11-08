@@ -20,6 +20,7 @@ public enum ErrorCode {
     INVALID_REQUEST(1010, "Dữ liệu yêu cầu không hợp lệ", HttpStatus.BAD_REQUEST),
     INVALID_ACCESS_TOKEN(1011, "Phiên đăng nhập không hợp lệ hoặc đã hết hạn", HttpStatus.UNAUTHORIZED),
     CANNOT_DEACTIVATE_SELF(1012, "Không thể tự vô hiệu hóa tài khoản đang đăng nhập", HttpStatus.CONFLICT),
+    LAST_ACTIVE_ADMIN_REQUIRED(1014, "Phải duy trì ít nhất một quản trị viên hệ thống đang hoạt động", HttpStatus.CONFLICT),
 
     ROLE_NOT_FOUND(2001, "Không tìm thấy vai trò", HttpStatus.NOT_FOUND),
     ROLE_INACTIVE(2002, "Không thể gán vai trò đang ngừng hoạt động", HttpStatus.CONFLICT),

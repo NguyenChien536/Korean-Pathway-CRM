@@ -2,6 +2,9 @@ package com.crm.korean_pathway_crm.role.service;
 
 import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
+import com.crm.korean_pathway_crm.permission.Permission;
+import com.crm.korean_pathway_crm.permission.PermissionMapper;
+import com.crm.korean_pathway_crm.permission.RolePermissionRepository;
 import com.crm.korean_pathway_crm.role.dto.RoleRequest;
 import com.crm.korean_pathway_crm.role.entity.Role;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
@@ -17,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,11 +32,13 @@ import static org.mockito.Mockito.*;
 class RoleServiceTest {
     @Mock private RoleRepository roles;
     @Mock private UserRepository users;
+    @Mock private RolePermissionRepository rolePermissions;
     private RoleServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new RoleServiceImpl(roles, Mappers.getMapper(RoleMapper.class), users);
+        service = new RoleServiceImpl(roles, Mappers.getMapper(RoleMapper.class), users,
+                rolePermissions, Mappers.getMapper(PermissionMapper.class));
     }
 
     @Test
@@ -95,6 +101,40 @@ class RoleServiceTest {
     void missingRoleUsesRoleNotFoundError() {
         assertThat(assertThrows(AppException.class, () -> service.getRoleById(UUID.randomUUID())).getErrorCode())
                 .isEqualTo(ErrorCode.ROLE_NOT_FOUND);
+    }
+
+    @Test
+    void missingRoleDoesNotQueryItsPermissions() {
+        UUID id = UUID.randomUUID();
+        assertThat(assertThrows(AppException.class, () -> service.getRolePermissions(id)).getErrorCode())
+                .isEqualTo(ErrorCode.ROLE_NOT_FOUND);
+        verifyNoInteractions(rolePermissions);
+    }
+
+    @Test
+    void existingRoleWithoutPermissionsReturnsEmptyList() {
+        Role role = existingRole(false);
+        when(rolePermissions.findPermissionsByRoleId(role.getId())).thenReturn(List.of());
+
+        assertThat(service.getRolePermissions(role.getId())).isEmpty();
+    }
+
+    @Test
+    void assignedPermissionsAreMappedToResponseDtos() {
+        Role role = existingRole(false);
+        Permission permission = new Permission();
+        permission.setId(UUID.randomUUID());
+        permission.setCode("LEADS.READ");
+        permission.setName("View leads");
+        permission.setModule("LEADS");
+        when(rolePermissions.findPermissionsByRoleId(role.getId())).thenReturn(List.of(permission));
+
+        var result = service.getRolePermissions(role.getId());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(permission.getId());
+        assertThat(result.get(0).getCode()).isEqualTo("LEADS.READ");
+        assertThat(result.get(0).getModule()).isEqualTo("LEADS");
     }
 
     private Role existingRole(boolean system) {

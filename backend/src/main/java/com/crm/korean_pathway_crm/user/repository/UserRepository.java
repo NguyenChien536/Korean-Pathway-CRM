@@ -1,18 +1,21 @@
 package com.crm.korean_pathway_crm.user.repository;
 
 import com.crm.korean_pathway_crm.user.entity.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
-public interface UserRepository extends JpaRepository<User, UUID> {
+public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificationExecutor<User> {
     boolean existsByRoleId(UUID roleId);
+
+    @Query("select count(u) from User u where u.isActive = true and u.role.code = :roleCode")
+    long countActiveByRoleCode(@Param("roleCode") String roleCode);
     boolean existsByUsernameIgnoreCase(String username);
 
     boolean existsByEmailIgnoreCase(String email);
@@ -32,4 +35,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @EntityGraph(attributePaths = "role")
     Optional<User> findWithRoleById(UUID id);
+
+    /**
+     * Queries only the requested page and loads the to-one role used by UserResponse mapping.
+     * Do not fetch the role-permissions collection in this paged query.
+     */
+    @Override
+    @EntityGraph(attributePaths = "role")
+    Page<User> findAll(Specification<User> specification, Pageable pageable);
+
+    Optional<Object> findByEmail(String mail);
 }

@@ -1,7 +1,7 @@
 package com.crm.korean_pathway_crm.exception;
 
 import com.crm.korean_pathway_crm.common.exception.ResourceNotFoundException;
-import com.crm.korean_pathway_crm.user.dto.ApiResponse;
+import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.TypeMismatchException;

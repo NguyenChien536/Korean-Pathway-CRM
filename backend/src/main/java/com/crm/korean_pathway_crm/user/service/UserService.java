@@ -7,30 +7,34 @@ import com.crm.korean_pathway_crm.role.entity.Role;
 import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import com.crm.korean_pathway_crm.role.enums.SystemRoleCode;
 import com.crm.korean_pathway_crm.role.repository.RoleRepository;
-import com.crm.korean_pathway_crm.user.dto.ChangePasswordRequest;
-import com.crm.korean_pathway_crm.user.dto.MyInfoUpdateRequest;
-import com.crm.korean_pathway_crm.user.dto.UserCreationRequest;
-import com.crm.korean_pathway_crm.user.dto.UserResponse;
-import com.crm.korean_pathway_crm.user.dto.UserUpdateRequest;
+import com.crm.korean_pathway_crm.user.dto.request.*;
+import com.crm.korean_pathway_crm.user.dto.response.UserResponse;
 import com.crm.korean_pathway_crm.user.entity.User;
 import com.crm.korean_pathway_crm.user.mapper.UserMapper;
 import com.crm.korean_pathway_crm.user.repository.UserRepository;
+import com.crm.korean_pathway_crm.user.specification.UserSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -41,6 +45,13 @@ public class UserService {
     private static final String USERNAME_UNIQUE_INDEX = "uq_users_username_lower";
     private static final String EMAIL_UNIQUE_INDEX = "uq_users_email_lower";
     private static final String PHONE_UNIQUE_INDEX = "uq_users_phone";
+    private static final Map<String, String> USER_SORT_FIELDS = Map.of(
+            "username", "username",
+            "fullName", "fullName",
+            "email", "email",
+            "createdAt", "createdAt",
+            "status", "isActive"
+    );
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -48,9 +59,11 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public UserResponse createUser(UserCreationRequest request) {
-        User actor = requirePermission("USERS.MANAGE");
+        lockAdminMembership();
+        User actor = currentActor();
         String username = normalizeRequired(request.getUsername());
         String email = normalizeRequired(request.getEmail());
         String phone = normalizeOptional(request.getPhone());
@@ -80,25 +93,68 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('USERS.READ')")
     public UserResponse getUserById(UUID id) {
-        requirePermission("USERS.READ");
         return userMapper.toUserResponse(findUser(id));
     }
 
     @Transactional(readOnly = true)
-    public List<UserResponse> getAllUsers() {
-        requirePermission("USERS.READ");
-        return userRepository.findAll(Sort.by(Sort.Direction.ASC, "username"))
-                .stream()
-                .map(userMapper::toUserResponse)
-                .toList();
+    @PreAuthorize("hasAuthority('USERS.READ')")
+    public Page<UserResponse> getAllUsers(UserFilterRequest request) {
+        log.debug("Retrieving users in the system with pagination and filters");
+
+        // Mặc định sắp xếp là quy tắc riêng của danh sách User, nên đặt ở đây thay vì lớp request dùng chung.
+        String sortBy = StringUtils.hasText(request.getSortBy())
+                ? request.getSortBy().trim()
+                : "username";
+
+        // Chỉ chấp nhận field nằm trong danh sách cho phép, không đưa trực tiếp tên field tùy ý từ client vào JPA.
+        // Tên "status" trên API được ánh xạ sang thuộc tính "isActive" của entity User.
+        String entityField = USER_SORT_FIELDS.get(sortBy);
+
+        if (entityField == null) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER);
+        }
+
+        // Chuyển chiều sắp xếp từ API sang kiểu Spring Data; mặc định đã thống nhất là tăng dần (ASC).
+        Sort.Direction sortDir = Sort.Direction.ASC;
+        if (StringUtils.hasText(request.getSortDir())) {
+            try {
+                sortDir = Sort.Direction.fromString(request.getSortDir().trim());
+            } catch (IllegalArgumentException exception) {
+                throw new AppException(ErrorCode.INVALID_PARAMETER);
+            }
+        }
+
+        // Thêm id làm tiêu chí phụ để các user trùng giá trị sort chính vẫn có thứ tự xác định.
+        Sort sort = Sort.by(
+                new Sort.Order(sortDir, entityField),
+                Sort.Order.asc("id")
+        );
+
+        // Pageable mô tả trang, số dòng tối đa và thứ tự; nó không chứa điều kiện search/filter.
+        Pageable pageable = PageRequest.of(
+                request.getPage(),
+                request.getSize(),
+                sort
+        );
+
+        // Specification tạo các điều kiện WHERE tùy chọn; repository áp dụng chúng trước khi phân trang.
+        Specification<User> spec = UserSpecification.of(request);
+        Page<User> page = userRepository.findAll(spec, pageable);
+
+        // Chỉ chuyển các entity thuộc trang hiện tại sang DTO an toàn; Page.map vẫn giữ metadata phân trang.
+        return page.map(userMapper::toUserResponse);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public UserResponse updateUser(UUID id, UserUpdateRequest request) {
-        User actor = requirePermission("USERS.MANAGE");
+        lockAdminMembership();
+        User actor = currentActor();
         User user = findUser(id);
 
+        ensureCanManageUser(actor, user);
         if (request.getUsername() != null) {
             ensureUsernameAvailable(normalizeRequired(request.getUsername()), id);
         }
@@ -113,6 +169,9 @@ public class UserService {
         boolean roleChanged = false;
         if (request.getRoleId() != null && !request.getRoleId().equals(user.getRole().getId())) {
             Role role = findAssignableRole(request.getRoleId(), actor);
+            if (!SystemRoleCode.SYSTEM_ADMIN.name().equals(role.getCode())) {
+                ensureCanRemoveActiveAdmin(user);
+            }
             user.setRole(role);
             roleChanged = true;
         }
@@ -199,10 +258,14 @@ public class UserService {
         log.info("Password changed successfully for user ID: {}", user.getId());
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public void deleteUser(UUID userId) {
-        User actor = requirePermission("USERS.MANAGE");
+        lockAdminMembership();
+        User actor = currentActor();
         User user = findUser(userId);
+
+        ensureCanManageUser(actor, user);
 
         // Keep audit and business-history references intact; disable the account instead of deleting it.
         if (actor.getId().equals(user.getId())) {
@@ -213,6 +276,7 @@ public class UserService {
             return;
         }
 
+        ensureCanRemoveActiveAdmin(user);
         user.setActive(false);
         user.setUpdatedBy(actor);
         user.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
@@ -235,14 +299,6 @@ public class UserService {
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
         return true;
-    }
-
-    private User requirePermission(String permissionCode) {
-        User actor = currentActor();
-        if (!roleRepository.hasPermission(actor.getRole().getId(), permissionCode)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-        return actor;
     }
 
     private User currentActor() {
@@ -270,17 +326,37 @@ public class UserService {
     }
 
     private Role findAssignableRole(UUID roleId, User actor) {
+        // Cấp role có thể cấp thêm quyền; hiện chỉ system admin được thực hiện.
+        if (!isSystemAdmin(actor)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
         if (role.getStatus() != RoleStatus.ACTIVE) {
             throw new AppException(ErrorCode.ROLE_INACTIVE);
         }
-        if (SystemRoleCode.SYSTEM_ADMIN.name().equals(role.getCode()) && !isSystemAdmin(actor)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
         return role;
     }
 
+    private void ensureCanManageUser(User actor, User target) {
+        if (isSystemAdmin(target) && !isSystemAdmin(actor)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    private void lockAdminMembership() {
+        // Mọi thao tác tạo, đổi role, vô hiệu hóa user lấy cùng khóa này trước
+        // khi đọc actor/target và đếm admin. Khóa được giữ đến cuối transaction.
+        roleRepository.findByCodeForUpdate(SystemRoleCode.SYSTEM_ADMIN.name())
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+    }
+
+    private void ensureCanRemoveActiveAdmin(User target) {
+        if (target.isActive() && isSystemAdmin(target)
+                && userRepository.countActiveByRoleCode(SystemRoleCode.SYSTEM_ADMIN.name()) <= 1) {
+            throw new AppException(ErrorCode.LAST_ACTIVE_ADMIN_REQUIRED);
+        }
+    }
     private void ensurePasswordConfirmation(String password, String confirmation) {
         if (!Objects.equals(password, confirmation)) {
             throw new AppException(ErrorCode.PASSWORD_CONFIRMATION_MISMATCH);
