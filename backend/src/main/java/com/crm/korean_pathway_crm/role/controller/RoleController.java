@@ -1,6 +1,7 @@
 package com.crm.korean_pathway_crm.role.controller;
 
 import com.crm.korean_pathway_crm.permission.dto.PermissionResponse;
+import com.crm.korean_pathway_crm.permission.dto.RolePermissionRequest;
 import com.crm.korean_pathway_crm.role.dto.RoleDto;
 import com.crm.korean_pathway_crm.role.dto.RoleRequest;
 import com.crm.korean_pathway_crm.role.service.RoleService;
@@ -33,6 +34,14 @@ public class RoleController {
     public ResponseEntity<ApiResponse<RoleDto>> updateRole(@PathVariable UUID id, @RequestBody @Valid RoleRequest request) {
         return ResponseEntity.ok(ApiResponse.<RoleDto>builder()
                 .result(roleService.updateRole(id, request))
+                .build());
+    }
+
+    @PutMapping("/{roleId}/permissions")
+    public ResponseEntity<ApiResponse<List<PermissionResponse>>> updateRolePermissions(
+            @PathVariable UUID roleId, @Valid @RequestBody RolePermissionRequest request) {
+        return ResponseEntity.ok(ApiResponse.<List<PermissionResponse>>builder()
+                .result(roleService.updateRolePermissions(roleId, request))
                 .build());
     }
 

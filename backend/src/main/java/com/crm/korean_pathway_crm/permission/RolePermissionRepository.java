@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface RolePermissionRepository extends JpaRepository<RolePermission, RolePermissionId> {
+    List<RolePermission> findAllByRole_Id(UUID roleId);
+
     @Query("""
         select p
         from RolePermission rp

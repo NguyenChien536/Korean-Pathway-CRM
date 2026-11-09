@@ -68,6 +68,22 @@ The service checks `USERS.MANAGE`, validates unique username/email/phone and pas
 
 Role assignment is restricted to `SYSTEM_ADMIN`, including the initial role of a new user. A delegated user manager may edit ordinary users, but cannot reset/deactivate system administrators or grant roles. Self-deactivation is forbidden. Removing the last active system administrator returns `409` with code `1014`.
 
+## Replace a role's permissions
+
+`PUT /api/v1/roles/{roleId}/permissions` requires both `ROLE_SYSTEM_ADMIN` and `CONFIGURATION.MANAGE`. Example body:
+
+```json
+{
+  "permissionCodes": ["LEADS.READ", "LEADS.UPDATE"]
+}
+```
+
+This replaces the entire permission set and returns the resulting list under `ApiResponse.result`. An empty list removes all permissions from a role that may be edited. Missing/null collections, null/blank/oversized codes, and more than 100 distinct codes return `400`. Unknown codes return `3001` without changing the old permissions. A missing role returns `404`/`2001`.
+
+The `SYSTEM_ADMIN` permission set is maintained by migrations: changing it through this endpoint returns `409`/`2007`. Sending its current set again is an accepted no-op. Other roles can be configured before activation or while active.
+
+Updates lock the target role, resolve all codes, and add/remove only the differences in one transaction. Retained links keep their `created_at`; identical requests do not recreate links. Concurrent replacements are serialized, with the last successful replacement defining the final set. This does not implement version-based conflict detection for stale clients. Permission changes are effective on subsequent requests using an existing access token because authorities are loaded from the database.
+
 User-management mutations acquire a write lock on the `SYSTEM_ADMIN` role row before reading account state. Every future flow that changes administrator membership must follow the same lock protocol. This intentionally serializes those mutations for this single-organization CRM. `User` uses dynamic updates so a concurrent profile-only write does not restore a stale role or active flag.
 
 ## Verify security policies

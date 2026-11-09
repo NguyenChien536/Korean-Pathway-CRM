@@ -4,6 +4,7 @@ import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import com.crm.korean_pathway_crm.permission.Permission;
 import com.crm.korean_pathway_crm.permission.PermissionMapper;
+import com.crm.korean_pathway_crm.permission.PermissionRepository;
 import com.crm.korean_pathway_crm.permission.RolePermissionRepository;
 import com.crm.korean_pathway_crm.role.dto.RoleRequest;
 import com.crm.korean_pathway_crm.role.entity.Role;
@@ -33,12 +34,13 @@ class RoleServiceTest {
     @Mock private RoleRepository roles;
     @Mock private UserRepository users;
     @Mock private RolePermissionRepository rolePermissions;
+    @Mock private PermissionRepository permissions;
     private RoleServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new RoleServiceImpl(roles, Mappers.getMapper(RoleMapper.class), users,
-                rolePermissions, Mappers.getMapper(PermissionMapper.class));
+                rolePermissions, Mappers.getMapper(PermissionMapper.class), permissions);
     }
 
     @Test

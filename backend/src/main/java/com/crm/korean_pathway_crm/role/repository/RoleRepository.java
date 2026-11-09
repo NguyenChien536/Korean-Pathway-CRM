@@ -18,6 +18,10 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
     Optional<Role> findByCodeIgnoreCase(String code);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Role r where r.id = :id")
+    Optional<Role> findByIdForUpdate(@Param("id") UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Role r where r.code = :code")
     Optional<Role> findByCodeForUpdate(@Param("code") String code);
     Optional<Role> findByName(String name);

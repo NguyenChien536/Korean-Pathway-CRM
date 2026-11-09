@@ -28,6 +28,9 @@ public enum ErrorCode {
     ROLE_CODE_ALREADY_EXISTS(2004, "Mã vai trò đã tồn tại", HttpStatus.CONFLICT),
     SYSTEM_ROLE_PROTECTED(2005, "Không thể xóa hoặc ngừng hoạt động vai trò hệ thống", HttpStatus.CONFLICT),
     ROLE_CODE_IMMUTABLE(2006, "Không thể thay đổi mã vai trò đã tạo", HttpStatus.CONFLICT),
+    SYSTEM_ADMIN_PERMISSIONS_PROTECTED(2007, "Không được thay đổi bộ quyền của vai trò quản trị hệ thống", HttpStatus.CONFLICT),
+
+    PERMISSION_CODE_NOT_FOUND(3001, "Một hoặc nhiều mã quyền không tồn tại", HttpStatus.BAD_REQUEST),
 
     RESOURCE_NOT_FOUND(9000, "Không tìm thấy tài nguyên yêu cầu", HttpStatus.NOT_FOUND),
     METHOD_NOT_ALLOWED(9001, "Phương thức HTTP không được hỗ trợ", HttpStatus.METHOD_NOT_ALLOWED),

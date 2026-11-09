@@ -1,6 +1,7 @@
 package com.crm.korean_pathway_crm.role.service;
 
 import com.crm.korean_pathway_crm.permission.dto.PermissionResponse;
+import com.crm.korean_pathway_crm.permission.dto.RolePermissionRequest;
 import com.crm.korean_pathway_crm.role.dto.RoleDto;
 import com.crm.korean_pathway_crm.role.dto.RoleRequest;
 
@@ -15,4 +16,5 @@ public interface RoleService {
 
     void deleteRole(UUID id);
     List<PermissionResponse> getRolePermissions(UUID roleId);
+    List<PermissionResponse> updateRolePermissions(UUID roleId, RolePermissionRequest request);
 }

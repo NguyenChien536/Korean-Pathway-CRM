@@ -7,6 +7,7 @@ import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.permission.*;
 import com.crm.korean_pathway_crm.role.entity.Role;
 import com.crm.korean_pathway_crm.role.repository.RoleRepository;
+import com.crm.korean_pathway_crm.role.service.RoleService;
 import com.crm.korean_pathway_crm.user.dto.request.UserUpdateRequest;
 import com.crm.korean_pathway_crm.user.entity.User;
 import com.crm.korean_pathway_crm.user.repository.UserRepository;
@@ -22,6 +23,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -42,6 +44,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,6 +65,8 @@ class SecurityPolicyIntegrationTest {
     @Autowired private PasswordEncoder encoder;
     @Autowired private JwtProperties jwtProperties;
     @Autowired private UserService userService;
+    @Autowired private RoleService roleService;
+    @Autowired private JdbcTemplate jdbc;
     @Autowired private PlatformTransactionManager transactionManager;
 
     private final HttpClient client = HttpClient.newHttpClient();
@@ -293,6 +298,173 @@ class SecurityPolicyIntegrationTest {
             assertError(request("POST", "/api/v1/auth/introspect", body, access), 400, 1010);
         }
         assertError(request("POST", "/api/v1/auth/introspect", Map.of("token", access), null), 401, 1011);
+    }
+
+    @Test
+    void replaceRolePermissionsPreservesRetainedLinksAndIsIdempotent() throws Exception {
+        String access = configurationAdminAccess();
+        Role custom = role("REPLACE_" + UUID.randomUUID());
+        grant(custom, "LEADS.READ");
+        grant(custom, "LEADS.CREATE");
+        grant(role("LOOKUP_" + UUID.randomUUID()), "LEADS.UPDATE");
+        Permission read = permissions.findAll().stream().filter(p -> p.getCode().equals("LEADS.READ")).findFirst().orElseThrow();
+        LocalDateTime originalTime = LocalDateTime.of(2020, 1, 1, 0, 0);
+        jdbc.update("update role_permissions set created_at = TIMESTAMP '2020-01-01 00:00:00' where role_id = ? and permission_id = ?",
+                custom.getId(), read.getId());
+
+        var body = Map.of("permissionCodes", List.of("LEADS.READ", "LEADS.UPDATE", "LEADS.READ"));
+        HttpResponse<String> changed = request("PUT", "/api/v1/roles/" + custom.getId() + "/permissions", body, access);
+        assertThat(changed.statusCode()).withFailMessage(changed.body()).isEqualTo(200);
+        assertThat(json.readTree(changed.body()).get("result").size()).isEqualTo(2);
+        assertThat(roles.findPermissionCodesByRoleId(custom.getId())).containsExactlyInAnyOrder("LEADS.READ", "LEADS.UPDATE");
+        assertThat(rolePermissions.findById(new RolePermissionId(custom.getId(), read.getId())).orElseThrow().getCreatedAt())
+                .isEqualTo(originalTime);
+        LocalDateTime updatedAt = roles.findById(custom.getId()).orElseThrow().getUpdatedAt();
+
+        assertThat(request("PUT", "/api/v1/roles/" + custom.getId() + "/permissions", body, access).statusCode()).isEqualTo(200);
+        assertThat(roles.findById(custom.getId()).orElseThrow().getUpdatedAt()).isEqualTo(updatedAt);
+        assertThat(rolePermissions.findAllByRole_Id(custom.getId())).hasSize(2);
+        assertThat(request("GET", "/api/v1/roles/" + custom.getId() + "/permissions", null, access).statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void missingPermissionCodeDoesNotPartiallyChangeRole() throws Exception {
+        String access = configurationAdminAccess();
+        Role custom = role("UNKNOWN_" + UUID.randomUUID());
+        grant(custom, "LEADS.READ");
+        LocalDateTime updatedAt = roles.findById(custom.getId()).orElseThrow().getUpdatedAt();
+
+        assertError(request("PUT", "/api/v1/roles/" + custom.getId() + "/permissions",
+                Map.of("permissionCodes", List.of("LEADS.READ", "UNKNOWN.PERMISSION")), access), 400, 3001);
+        assertThat(roles.findPermissionCodesByRoleId(custom.getId())).containsExactly("LEADS.READ");
+        assertThat(roles.findById(custom.getId()).orElseThrow().getUpdatedAt()).isEqualTo(updatedAt);
+    }
+
+    @Test
+    void emptySetRevokesAllCustomRolePermissions() throws Exception {
+        String access = configurationAdminAccess();
+        Role custom = role("EMPTY_" + UUID.randomUUID());
+        grant(custom, "LEADS.READ");
+        HttpResponse<String> response = request("PUT", "/api/v1/roles/" + custom.getId() + "/permissions",
+                Map.of("permissionCodes", List.of()), access);
+        assertThat(response.statusCode()).withFailMessage(response.body()).isEqualTo(200);
+        assertThat(json.readTree(response.body()).get("result").isArray()).isTrue();
+        assertThat(json.readTree(response.body()).get("result").size()).isZero();
+        assertThat(rolePermissions.findAllByRole_Id(custom.getId())).isEmpty();
+    }
+
+    @Test
+    void permissionUpdateRejectsMissingNullBlankOrOversizedCodesAndMissingRole() throws Exception {
+        String access = configurationAdminAccess();
+        Role custom = role("VALIDATION_" + UUID.randomUUID());
+        grant(custom, "LEADS.READ");
+        String path = "/api/v1/roles/" + custom.getId() + "/permissions";
+        Map<String, Object> nullCodes = new java.util.HashMap<>();
+        nullCodes.put("permissionCodes", null);
+        for (Object body : List.of(Map.of(), nullCodes,
+                Map.of("permissionCodes", List.of(" ")),
+                Map.of("permissionCodes", java.util.Arrays.asList((String) null)),
+                Map.of("permissionCodes", List.of("A".repeat(101))),
+                Map.of("permissionCodes", java.util.stream.IntStream.range(0, 101).mapToObj(i -> "CODE." + i).toList()))) {
+            assertError(request("PUT", path, body, access), 400, 1010);
+        }
+        assertError(request("PUT", path, null, access), 400, 1010);
+        assertError(request("PUT", "/api/v1/roles/" + UUID.randomUUID() + "/permissions",
+                Map.of("permissionCodes", List.of()), access), 404, 2001);
+        assertThat(roles.findPermissionCodesByRoleId(custom.getId())).containsExactly("LEADS.READ");
+    }
+
+    @Test
+    void adminPermissionSetCannotBeChangedButIdenticalPutIsAllowed() throws Exception {
+        String access = configurationAdminAccess();
+        Set<String> original = roles.findPermissionCodesByRoleId(adminRole.getId());
+        assertError(request("PUT", "/api/v1/roles/" + adminRole.getId() + "/permissions",
+                Map.of("permissionCodes", List.of()), access), 409, 2007);
+        assertThat(roles.findPermissionCodesByRoleId(adminRole.getId())).isEqualTo(original);
+        assertThat(request("PUT", "/api/v1/roles/" + adminRole.getId() + "/permissions",
+                Map.of("permissionCodes", original), access).statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void onlySystemAdminWithConfigurationPermissionCanReplaceRolePermissions() throws Exception {
+        Role custom = role("AUTH_" + UUID.randomUUID());
+        Role delegated = role("DELEGATED_" + UUID.randomUUID());
+        grant(delegated, "CONFIGURATION.MANAGE");
+        String delegatedAccess = login(user(delegated));
+        assertError(request("PUT", "/api/v1/roles/" + custom.getId() + "/permissions",
+                Map.of("permissionCodes", List.of()), delegatedAccess), 403, 1006);
+        assertError(request("PUT", "/api/v1/roles/" + custom.getId() + "/permissions",
+                Map.of("permissionCodes", List.of()), null), 401, 1011);
+    }
+
+    @Test
+    void grantedAndRevokedPermissionAffectsTheSameAccessTokenOnNextRequest() throws Exception {
+        String adminAccess = configurationAdminAccess();
+        Role custom = role("DYNAMIC_" + UUID.randomUUID());
+        grant(role("CATALOG_" + UUID.randomUUID()), "USERS.READ");
+        String userAccess = login(user(custom));
+        assertError(request("GET", "/api/v1/users", null, userAccess), 403, 1006);
+        assertThat(request("PUT", "/api/v1/roles/" + custom.getId() + "/permissions",
+                Map.of("permissionCodes", List.of("USERS.READ")), adminAccess).statusCode()).isEqualTo(200);
+        assertThat(request("GET", "/api/v1/users", null, userAccess).statusCode()).isEqualTo(200);
+        assertThat(request("PUT", "/api/v1/roles/" + custom.getId() + "/permissions",
+                Map.of("permissionCodes", List.of()), adminAccess).statusCode()).isEqualTo(200);
+        assertError(request("GET", "/api/v1/users", null, userAccess), 403, 1006);
+    }
+
+    @Test
+    @Timeout(25)
+    void concurrentReplacementsWaitForRoleLockAndDoNotMergeTheirSets() throws Exception {
+        grant(adminRole, "CONFIGURATION.MANAGE");
+        Role custom = role("CONCURRENT_" + UUID.randomUUID());
+        Role catalog = role("BATCH_" + UUID.randomUUID());
+        grant(catalog, "LEADS.READ");
+        grant(catalog, "LEADS.CREATE");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        List<Future<?>> futures = new java.util.ArrayList<>();
+        CountDownLatch started = new CountDownLatch(2);
+        try {
+            new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                roles.findByIdForUpdate(custom.getId()).orElseThrow();
+                for (String code : List.of("LEADS.READ", "LEADS.CREATE")) {
+                    futures.add(executor.submit(() -> {
+                        var context = SecurityContextHolder.createEmptyContext();
+                        context.setAuthentication(new UsernamePasswordAuthenticationToken("policy-test", null, List.of(
+                                new SimpleGrantedAuthority("ROLE_SYSTEM_ADMIN"),
+                                new SimpleGrantedAuthority("CONFIGURATION.MANAGE"))));
+                        SecurityContextHolder.setContext(context);
+                        started.countDown();
+                        try {
+                            roleService.updateRolePermissions(custom.getId(),
+                                    com.crm.korean_pathway_crm.permission.dto.RolePermissionRequest.builder()
+                                            .permissionCodes(Set.of(code)).build());
+                        } finally {
+                            SecurityContextHolder.clearContext();
+                        }
+                    }));
+                }
+                try {
+                    assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+                    for (Future<?> future : futures) {
+                        assertThrows(TimeoutException.class, () -> future.get(150, TimeUnit.MILLISECONDS));
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+            });
+            for (Future<?> future : futures) future.get(10, TimeUnit.SECONDS);
+            Set<String> result = roles.findPermissionCodesByRoleId(custom.getId());
+            assertThat(result).hasSize(1);
+            assertThat(result.iterator().next()).isIn("LEADS.READ", "LEADS.CREATE");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private String configurationAdminAccess() throws Exception {
+        grant(adminRole, "CONFIGURATION.MANAGE");
+        return login(user(adminRole));
     }
 
     private Role role(String code) {
