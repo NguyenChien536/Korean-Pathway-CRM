@@ -90,8 +90,8 @@ public class AuthenticationService {
             jwsObject.sign(new MACSigner(jwtProperties.signingKeyBytes()));
             return jwsObject.serialize();
         } catch (JOSEException e) {
-            log.error("Cannot generate token", e);
-            throw new RuntimeException(e);
+            log.error("Cannot generate token: {}", e.getClass().getSimpleName());
+            throw new IllegalStateException("Cannot generate token", e);
         }
     }
     private String buildScope(Role role) {

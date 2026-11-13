@@ -92,7 +92,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(Exception exception) {
-        log.error("Unhandled application exception", exception);
+        log.error("Unhandled application exception: {}", exception.getClass().getSimpleName());
         return errorResponse(ErrorCode.UNCATEGORIZED_EXCEPTION);
     }
 

@@ -32,6 +32,8 @@ public enum ErrorCode {
 
     PERMISSION_CODE_NOT_FOUND(3001, "Một hoặc nhiều mã quyền không tồn tại", HttpStatus.BAD_REQUEST),
 
+    PERSON_NOT_FOUND(4001, "Không tìm thấy người liên hệ", HttpStatus.NOT_FOUND),
+
     RESOURCE_NOT_FOUND(9000, "Không tìm thấy tài nguyên yêu cầu", HttpStatus.NOT_FOUND),
     METHOD_NOT_ALLOWED(9001, "Phương thức HTTP không được hỗ trợ", HttpStatus.METHOD_NOT_ALLOWED),
     UNSUPPORTED_MEDIA_TYPE(9002, "Định dạng dữ liệu gửi lên không được hỗ trợ", HttpStatus.UNSUPPORTED_MEDIA_TYPE),

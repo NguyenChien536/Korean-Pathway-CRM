@@ -64,8 +64,8 @@ public class UserService {
     public UserResponse createUser(UserCreationRequest request) {
         lockAdminMembership();
         User actor = currentActor();
-        String username = normalizeRequired(request.getUsername());
-        String email = normalizeRequired(request.getEmail());
+        String username = normalizeRequired(request.getUsername(), 2);
+        String email = normalizeRequired(request.getEmail(), 1);
         String phone = normalizeOptional(request.getPhone());
 
         ensureUsernameAvailable(username, null);
@@ -77,7 +77,7 @@ public class UserService {
         User user = userMapper.toUser(request);
         user.setUsername(username);
         user.setEmail(email);
-        user.setFullName(normalizeRequired(request.getFullName()));
+        user.setFullName(normalizeRequired(request.getFullName(), 2));
         user.setPhone(phone);
         user.setRole(role);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
@@ -156,10 +156,10 @@ public class UserService {
 
         ensureCanManageUser(actor, user);
         if (request.getUsername() != null) {
-            ensureUsernameAvailable(normalizeRequired(request.getUsername()), id);
+            ensureUsernameAvailable(normalizeRequired(request.getUsername(), 2), id);
         }
         if (request.getEmail() != null) {
-            ensureEmailAvailable(normalizeRequired(request.getEmail()), id);
+            ensureEmailAvailable(normalizeRequired(request.getEmail(), 1), id);
         }
         String requestedPhone = request.getPhone() == null ? null : normalizeOptional(request.getPhone());
         if (requestedPhone != null) {
@@ -178,13 +178,13 @@ public class UserService {
 
         userMapper.updateUser(user, request);
         if (request.getUsername() != null) {
-            user.setUsername(normalizeRequired(request.getUsername()));
+            user.setUsername(normalizeRequired(request.getUsername(), 2));
         }
         if (request.getEmail() != null) {
-            user.setEmail(normalizeRequired(request.getEmail()));
+            user.setEmail(normalizeRequired(request.getEmail(), 1));
         }
         if (request.getFullName() != null) {
-            user.setFullName(normalizeRequired(request.getFullName()));
+            user.setFullName(normalizeRequired(request.getFullName(), 2));
         }
         if (request.getPhone() != null) {
             user.setPhone(requestedPhone);
@@ -211,16 +211,13 @@ public class UserService {
     public UserResponse updateMyInfo(MyInfoUpdateRequest request) {
         User user = currentActor();
         if (request.getUsername() != null) {
-            String username = normalizeRequired(request.getUsername());
-            if (username.length() < 2) {
-                throw new AppException(ErrorCode.INVALID_REQUEST);
-            }
+            String username = normalizeRequired(request.getUsername(), 2);
             ensureUsernameAvailable(username, user.getId());
             user.setUsername(username);
         }
 
         if (request.getEmail() != null) {
-            String email = normalizeRequired(request.getEmail());
+            String email = normalizeRequired(request.getEmail(), 1);
             ensureEmailAvailable(email, user.getId());
             user.setEmail(email);
         }
@@ -434,8 +431,12 @@ public class UserService {
         return null;
     }
 
-    private String normalizeRequired(String value) {
-        return value.trim();
+    private String normalizeRequired(String value, int minLength) {
+        String normalized = value.trim();
+        if (normalized.length() < minLength) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+        return normalized;
     }
 
     private String normalizeOptional(String value) {

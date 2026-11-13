@@ -96,5 +96,8 @@ Versioned migration files are in `backend/src/main/resources/db/migration`:
 ## Project documents
 
 - [Local development and API examples](backend/DEVELOPMENT.md)
+- [API data, error and logging conventions](backend/API_DATA_CONVENTIONS.md)
+- [Lead access policy](backend/LEAD_ACCESS_POLICY.md)
+- [Person contact policy for Lead creation](backend/PERSON_CONTACT_POLICY.md)
 - [Requirements and use cases](docs/SRSReport.md)
 - [Technical implementation roadmap](docs/ROADMAP_TRIEN_KHAI.md)

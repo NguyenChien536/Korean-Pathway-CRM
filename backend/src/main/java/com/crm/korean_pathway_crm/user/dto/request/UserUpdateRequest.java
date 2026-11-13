@@ -16,13 +16,15 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserUpdateRequest {
     @Size(min = 2, max = 100, message = "Tên người dùng phải từ 2 đến 100 ký tự")
+    @Pattern(regexp = "(?s).*\\S.*", message = "Tên người dùng không được chỉ chứa khoảng trắng")
     String username;
 
     @Email
-    @Size(max = 255, message = "Email tối đa 255 ký tự")
+    @Size(min = 1, max = 255, message = "Email phải từ 1 đến 255 ký tự")
     String email;
 
     @Size(min = 2, max = 200, message = "Họ và tên phải từ 2 đến 200 ký tự")
+    @Pattern(regexp = "(?s).*\\S.*", message = "Họ và tên không được chỉ chứa khoảng trắng")
     String fullName;
 
     @Size(max = 50, message = "Số điện thoại tối đa 50 ký tự")
