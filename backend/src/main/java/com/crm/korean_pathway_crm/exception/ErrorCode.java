@@ -33,6 +33,10 @@ public enum ErrorCode {
     PERMISSION_CODE_NOT_FOUND(3001, "Một hoặc nhiều mã quyền không tồn tại", HttpStatus.BAD_REQUEST),
 
     PERSON_NOT_FOUND(4001, "Không tìm thấy người liên hệ", HttpStatus.NOT_FOUND),
+    LEAD_SOURCE_NOT_FOUND(4002, "Không tìm thấy nguồn Lead đang hoạt động", HttpStatus.NOT_FOUND),
+    LEAD_PIPELINE_NOT_CONFIGURED(4003, "Chưa cấu hình pipeline mặc định cho Lead", HttpStatus.INTERNAL_SERVER_ERROR),
+    LEAD_INITIAL_STAGE_NOT_CONFIGURED(4004, "Chưa cấu hình giai đoạn đầu cho Lead", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_PHONE(4005, "Số điện thoại không hợp lệ", HttpStatus.BAD_REQUEST),
 
     RESOURCE_NOT_FOUND(9000, "Không tìm thấy tài nguyên yêu cầu", HttpStatus.NOT_FOUND),
     METHOD_NOT_ALLOWED(9001, "Phương thức HTTP không được hỗ trợ", HttpStatus.METHOD_NOT_ALLOWED),

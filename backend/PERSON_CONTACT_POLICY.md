@@ -14,6 +14,8 @@
 
 **Quyết định ngày 2026-11-13:** Cho phép nhiều Person dùng chung một số điện thoại. Trước khi tạo Lead, tìm contact `PHONE` theo `normalized_value`; so sánh thêm tên đã chuẩn hóa (bỏ khoảng trắng thừa, không phân biệt hoa/thường) để chọn luồng. Không bỏ dấu tiếng Việt hoặc tự coi hai cách viết gần giống là cùng tên khi chưa chốt quy tắc đối chiếu.
 
+**Quyết định ngày 2026-11-14 về phone:** `PhoneNormalizer` lưu số Việt Nam có đầu `0` (10 hoặc 11 chữ số) thành `+84` và phần sau số `0`; số `+84` tương ứng giữ nguyên. Ví dụ `0912345678` và `+84912345678` cùng có `normalized_value = +84912345678`. Số quốc tế khác phải bắt đầu bằng `+`, gồm 9–15 chữ số theo dạng E.164 đơn giản và được giữ nguyên. Không nhận `84...` thiếu dấu `+`, dấu cách ở giữa, dấu gạch nối hoặc `+840...`. `PersonContactService` gọi cùng normalizer khi tìm và khi tạo PHONE; `value` giữ cách nhập ban đầu sau khi bỏ khoảng trắng đầu/cuối. Đây là quy tắc cho dữ liệu mới; nếu đã có contact lưu theo cách khác thì cần migration làm sạch trước khi trông chờ tra cứu khớp.
+
 ### Lead đến từ webhook
 
 - Nếu **đúng một Person** có cả tên và phone khớp, hệ thống tự dùng lại Person và xử lý Lead cũ theo trạng thái bên dưới; không cần nhân viên xác nhận trong đường xử lý webhook. Đây là quy tắc tự động theo quyết định sản phẩm, vẫn có rủi ro hiếm gặp hai người trùng tên và cùng số.
@@ -38,7 +40,6 @@ Schema hiện có index tìm theo `(contact_type, normalized_value)` và chỉ u
 
 ## Quyết định còn mở trước khi code
 
-- Chuẩn hóa số điện thoại: định dạng nhập được chấp nhận và cách lưu `normalized_value`.
 - Cách xử lý tên viết khác/đổi tên và trường hợp nhiều Person cùng khớp; webhook tự động chỉ áp dụng cho kết quả khớp duy nhất.
 - Khi mở lại Lead `LOST`/`ARCHIVED`, chọn stage đang mở nào và ai được phép thao tác.
 - Nếu Person có nhiều Lead `LOST`/`ARCHIVED`, chọn Lead nào để mở lại; nếu Person đã là Customer thì ưu tiên luồng Customer.

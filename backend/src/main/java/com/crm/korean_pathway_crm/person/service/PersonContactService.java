@@ -17,16 +17,32 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PersonContactService {
     private final PersonContactRepository personContactRepository;
+    private final PhoneNormalizer phoneNormalizer;
 
-    // The caller must apply the same normalization rule used when saving contacts.
+    @Transactional(readOnly = true)
+    public List<PersonContact> findByPhone(String phone) {
+        String normalizedPhone = phoneNormalizer.normalize(phone);
+        return personContactRepository.findAllByContactTypeAndNormalizedValue(
+                PersonContactType.PHONE, normalizedPhone);
+    }
+
+    // PHONE accepts raw input and applies the shared normalizer before lookup.
     @Transactional(readOnly = true)
     public List<PersonContact> findByTypeAndNormalizedValue(
             PersonContactType contactType, String normalizedValue) {
         if (contactType == null || !StringUtils.hasText(normalizedValue)) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
-        return personContactRepository.findAllByContactTypeAndNormalizedValue(
-                contactType, normalizedValue.trim());
+        String lookupValue = contactType == PersonContactType.PHONE
+                ? phoneNormalizer.normalize(normalizedValue)
+                : normalizedValue.trim();
+        return personContactRepository.findAllByContactTypeAndNormalizedValue(contactType, lookupValue);
+    }
+
+    @Transactional
+    public PersonContact createPhone(Person person, String phone) {
+        phoneNormalizer.normalize(phone);
+        return create(person, PersonContactType.PHONE, phone, null);
     }
 
     @Transactional
@@ -36,16 +52,27 @@ public class PersonContactService {
             String value,
             String normalizedValue
     ) {
-        if (person == null || contactType == null
-                || !StringUtils.hasText(value) || !StringUtils.hasText(normalizedValue)) {
+        if (person == null || contactType == null || !StringUtils.hasText(value)
+                || (contactType != PersonContactType.PHONE && !StringUtils.hasText(normalizedValue))) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        String canonicalValue;
+        if (contactType == PersonContactType.PHONE) {
+            canonicalValue = phoneNormalizer.normalize(value);
+            if (normalizedValue != null
+                    && !canonicalValue.equals(phoneNormalizer.normalize(normalizedValue))) {
+                throw new AppException(ErrorCode.INVALID_REQUEST);
+            }
+        } else {
+            canonicalValue = normalizedValue.trim();
         }
 
         PersonContact contact = PersonContact.builder()
                 .person(person)
                 .contactType(contactType)
                 .value(value.trim())
-                .normalizedValue(normalizedValue.trim())
+                .normalizedValue(canonicalValue)
                 .build();
         return personContactRepository.save(contact);
     }
