@@ -1,5 +1,6 @@
 package com.crm.korean_pathway_crm.lead.service;
 
+import com.crm.korean_pathway_crm.common.security.CurrentActorService;
 import com.crm.korean_pathway_crm.lead.repository.LeadRepository;
 import com.crm.korean_pathway_crm.person.service.PersonContactService;
 import com.crm.korean_pathway_crm.person.service.PersonService;
@@ -13,4 +14,5 @@ public class LeadService {
     private final LeadCatalogService leadCatalogService;
     private final PersonService personService;
     private final PersonContactService personContactService;
+    private final CurrentActorService currentActorService;
 }

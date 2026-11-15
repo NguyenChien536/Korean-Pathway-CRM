@@ -1,6 +1,7 @@
 package com.crm.korean_pathway_crm.user.service;
 
 import com.crm.korean_pathway_crm.auth.service.RefreshTokenService;
+import com.crm.korean_pathway_crm.common.security.CurrentActorService;
 import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import com.crm.korean_pathway_crm.role.entity.Role;
@@ -22,8 +23,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -58,12 +57,13 @@ public class UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
+    private final CurrentActorService currentActorService;
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public UserResponse createUser(UserCreationRequest request) {
         lockAdminMembership();
-        User actor = currentActor();
+        User actor = currentActorService.requireCurrentActor();
         String username = normalizeRequired(request.getUsername(), 2);
         String email = normalizeRequired(request.getEmail(), 1);
         String phone = normalizeOptional(request.getPhone());
@@ -151,7 +151,7 @@ public class UserService {
     @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public UserResponse updateUser(UUID id, UserUpdateRequest request) {
         lockAdminMembership();
-        User actor = currentActor();
+        User actor = currentActorService.requireCurrentActor();
         User user = findUser(id);
 
         ensureCanManageUser(actor, user);
@@ -203,13 +203,13 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public UserResponse getMyInfo() {
-        User user = currentActor();
+        User user = currentActorService.requireCurrentActor();
         return userMapper.toUserResponse(user);
     }
 
     @Transactional
     public UserResponse updateMyInfo(MyInfoUpdateRequest request) {
-        User user = currentActor();
+        User user = currentActorService.requireCurrentActor();
         if (request.getUsername() != null) {
             String username = normalizeRequired(request.getUsername(), 2);
             ensureUsernameAvailable(username, user.getId());
@@ -235,7 +235,7 @@ public class UserService {
 
     @Transactional
     public void changePassword(ChangePasswordRequest request) {
-        User user = currentActor();
+        User user = currentActorService.requireCurrentActor();
         ensureBcryptPasswordLength(request.getOldPassword());
         ensureBcryptPasswordLength(request.getNewPassword());
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPasswordHash())) {
@@ -259,7 +259,7 @@ public class UserService {
     @PreAuthorize("hasAuthority('USERS.MANAGE')")
     public void deleteUser(UUID userId) {
         lockAdminMembership();
-        User actor = currentActor();
+        User actor = currentActorService.requireCurrentActor();
         User user = findUser(userId);
 
         ensureCanManageUser(actor, user);
@@ -296,26 +296,6 @@ public class UserService {
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
         return true;
-    }
-
-    private User currentActor() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()
-                || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new AppException(ErrorCode.AUTHENTICATED_USER_NOT_FOUND);
-        }
-
-        UUID actorId;
-        try {
-            actorId = UUID.fromString(authentication.getName());
-        } catch (IllegalArgumentException exception) {
-            throw new AppException(ErrorCode.AUTHENTICATED_USER_NOT_FOUND);
-        }
-        User actor = findUser(actorId);
-        if (!actor.isActive() || actor.getRole() == null || actor.getRole().getStatus() != RoleStatus.ACTIVE) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-        return actor;
     }
 
     private boolean isSystemAdmin(User user) {
