@@ -28,9 +28,6 @@ public class LeadCreationRequest {
     @Size(max = 255, message = "Email tối đa 255 ký tự")
     String email;
 
-    @Size(max = 255, message = "Zalo tối đa 255 ký tự")
-    String zalo;
-
     UUID sourceId;
 
     @Size(max = 150, message = "Tên chiến dịch tối đa 150 ký tự")

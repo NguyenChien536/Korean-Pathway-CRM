@@ -26,15 +26,17 @@ public class LeadCatalogService {
 
     @Transactional(readOnly = true)
     public InitialLeadStage resolveInitialLeadStage() {
+        //Tìm pipeline mặc định, đang hoạt động, dành cho LEAD
         Pipeline pipeline = pipelineRepository.findByEntityTypeAndDefaultPipelineTrueAndStatus(
                         PipelineEntityType.LEAD, CatalogStatus.ACTIVE)
                 .orElseThrow(() -> new AppException(ErrorCode.LEAD_PIPELINE_NOT_CONFIGURED));
 
+        //Dùng pipeline.getId() để tìm stage đầu đang hoạt động của pipeline đó.
         PipelineStage stage = pipelineStageRepository
                 .findByPipelineIdAndInitialTrueAndTerminalFalseAndCategoryAndStatus(
                         pipeline.getId(), PipelineStageCategory.OPEN, CatalogStatus.ACTIVE)
                 .orElseThrow(() -> new AppException(ErrorCode.LEAD_INITIAL_STAGE_NOT_CONFIGURED));
-
+        //Trả InitialLeadStage(pipelineId, stageId).
         return new InitialLeadStage(pipeline.getId(), stage.getId());
     }
 

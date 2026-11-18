@@ -20,7 +20,6 @@ public class LeadResponse {
     String fullName;
     String phone;
     String email;
-    String zalo;
     UUID sourceId;
     UUID pipelineId;
     UUID stageId;
@@ -34,4 +33,5 @@ public class LeadResponse {
     LocalDateTime convertedAt;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
+    boolean sharedPhoneWarning;
 }

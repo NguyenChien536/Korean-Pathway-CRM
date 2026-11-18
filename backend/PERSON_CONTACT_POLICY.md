@@ -1,11 +1,12 @@
 # Thông tin liên hệ tối thiểu khi tạo Lead (PER-01)
 
-**Quyết định ngày 2026-11-13:** Luồng tạo Lead mới phải nhận họ tên Person và **số điện thoại**. Email và Zalo là tùy chọn. Vì phone đã bắt buộc, điều kiện “có ít nhất một trong phone/Zalo/email” được đáp ứng tự nhiên; không cần thêm một validation riêng cho điều kiện đó.
+**Quyết định hiện hành (cập nhật ngày 2026-11-18):** Luồng tạo Lead mới phải nhận họ tên Person và **số điện thoại**; email là tùy chọn. Vì phone đã bắt buộc, không cần thêm validation “có ít nhất một phương thức liên hệ”. Request/response tạo Lead không có field `zalo` riêng. Khi cần thu thập thêm Zalo, Kakao hoặc kênh khác, thiết kế danh sách contact có `contactType` và `value` cùng validation theo từng loại, thay vì thêm một field riêng cho mỗi kênh.
 
 ## Phạm vi áp dụng
 
 - Áp dụng cho use case tạo Person cùng Lead qua API `POST /leads` sẽ xây dựng sau này. API tạo Person độc lập, import dữ liệu hoặc cập nhật/xóa contact cần quy tắc riêng trước khi mở.
 - `persons.full_name` lưu tên người; `person_contacts` lưu mỗi cách liên hệ trong một dòng (`contact_type`, `value`, `normalized_value`). Số điện thoại bắt buộc được tạo thành một contact `PHONE` cùng transaction tạo Person và Lead.
+- `lead_sources` cho biết khách đến từ đâu; nguồn `ZALO` trong bảng này không phải tài khoản Zalo của Person. `PersonContactType.ZALO` vẫn là loại liên hệ có thể dùng khi triển khai tính năng contact mở rộng.
 - Service cần từ chối request thiếu phone hoặc phone không hợp lệ trước khi lưu. Nếu một bước tạo Person, Contact hoặc Lead thất bại, transaction phải rollback toàn bộ.
 - Schema hiện chỉ `UNIQUE (person_id, contact_type, normalized_value)` và unique contact chính theo từng loại trong một Person. Nó **không** buộc mọi Person có dòng `PHONE` và **không** buộc phone duy nhất giữa hai Person. Vì vậy validation phone bắt buộc thuộc use case tạo Lead; không được mô tả là DB đã bảo đảm điều này.
 - Demo seed hiện tạo Person và Lead mà không có dòng `person_contacts`; cần bổ sung contact giả khi triển khai luồng Lead để dữ liệu demo phản ánh quy tắc mới.
