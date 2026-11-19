@@ -6,10 +6,14 @@ import com.crm.korean_pathway_crm.lead.service.LeadService;
 import com.crm.korean_pathway_crm.user.dto.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/leads")
@@ -21,6 +25,13 @@ public class LeadController {
     public ApiResponse<LeadResponse> createLead(@Valid @RequestBody LeadCreationRequest request) {
         return ApiResponse.<LeadResponse>builder()
                 .result(leadService.createLead(request))
+                .build();
+    }
+
+    @GetMapping("/{leadId}")
+    public ApiResponse<LeadResponse> getLeadById(@PathVariable UUID leadId) {
+        return ApiResponse.<LeadResponse>builder()
+                .result(leadService.getLeadById(leadId))
                 .build();
     }
 }

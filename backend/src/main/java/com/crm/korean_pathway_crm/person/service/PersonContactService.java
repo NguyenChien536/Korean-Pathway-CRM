@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +25,11 @@ public class PersonContactService {
         String normalizedPhone = phoneNormalizer.normalize(phone);
         return personContactRepository.findAllByContactTypeAndNormalizedValue(
                 PersonContactType.PHONE, normalizedPhone);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PersonContact> findByPersonAndType(UUID personId, PersonContactType type) {
+        return personContactRepository.findAllByPersonIdAndContactTypeOrderByPrimaryDescCreatedAtAscIdAsc(personId, type);
     }
 
     // PHONE accepts raw input and applies the shared normalizer before lookup.

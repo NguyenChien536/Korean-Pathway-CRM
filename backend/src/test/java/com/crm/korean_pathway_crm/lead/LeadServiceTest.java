@@ -10,8 +10,10 @@ import com.crm.korean_pathway_crm.lead.service.LeadCatalogService;
 import com.crm.korean_pathway_crm.lead.service.LeadService;
 import com.crm.korean_pathway_crm.person.entity.Person;
 import com.crm.korean_pathway_crm.person.entity.PersonContact;
+import com.crm.korean_pathway_crm.person.enums.PersonContactType;
 import com.crm.korean_pathway_crm.person.service.PersonContactService;
 import com.crm.korean_pathway_crm.person.service.PersonService;
+import com.crm.korean_pathway_crm.role.entity.Role;
 import com.crm.korean_pathway_crm.user.entity.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +78,45 @@ class LeadServiceTest {
                 .isInstanceOfSatisfying(AppException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_CONFIRMATION_REQUIRED));
         verifyNoInteractions(personService, leadRepository);
+    }
+
+    @Test
+    void assignedCounselorCanReadLeadWithPersonContacts() {
+        UUID actorId = UUID.randomUUID();
+        UUID leadId = UUID.randomUUID();
+        UUID personId = UUID.randomUUID();
+        User actor = User.builder().id(actorId).role(Role.builder().code("COUNSELOR").build()).build();
+        Lead lead = Lead.builder().id(leadId).personId(personId).assignedTo(actorId).build();
+        Person person = Person.builder().id(personId).fullName("Nguyễn Văn An").build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(leadRepository.findByIdAndDeletedAtIsNull(leadId)).thenReturn(Optional.of(lead));
+        when(personService.getById(personId)).thenReturn(person);
+        when(personContactService.findByPersonAndType(personId, PersonContactType.PHONE))
+                .thenReturn(List.of(PersonContact.builder().value("0912345678").normalizedValue("+84912345678").build()));
+        when(personContactService.findByPersonAndType(personId, PersonContactType.EMAIL))
+                .thenReturn(List.of(PersonContact.builder().value("an@example.com").build()));
+
+        var response = leadService.getLeadById(leadId);
+
+        assertThat(response.getId()).isEqualTo(leadId);
+        assertThat(response.getFullName()).isEqualTo("Nguyễn Văn An");
+        assertThat(response.getPhone()).isEqualTo("+84912345678");
+        assertThat(response.getEmail()).isEqualTo("an@example.com");
+    }
+
+    @Test
+    void otherCounselorGetsNotFoundWithoutReadingPerson() {
+        UUID leadId = UUID.randomUUID();
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("COUNSELOR").build()).build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(leadRepository.findByIdAndDeletedAtIsNull(leadId)).thenReturn(Optional.of(
+                Lead.builder().id(leadId).assignedTo(UUID.randomUUID()).build()));
+
+        assertThatThrownBy(() -> leadService.getLeadById(leadId))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.LEAD_NOT_FOUND));
+        verifyNoInteractions(personService, personContactService);
     }
 
     private LeadCreationRequest request(String fullName) {

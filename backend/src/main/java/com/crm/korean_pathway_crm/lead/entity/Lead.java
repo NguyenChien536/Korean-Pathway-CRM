@@ -5,6 +5,8 @@ import com.crm.korean_pathway_crm.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -53,6 +55,7 @@ public class Lead {
     BigDecimal estimatedBudget;
 
     @Builder.Default
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "currency_code", nullable = false, length = 3, columnDefinition = "char(3)")
     String currencyCode = "VND";
 

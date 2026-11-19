@@ -12,4 +12,7 @@ public interface PersonContactRepository extends JpaRepository<PersonContact, UU
             PersonContactType personContactType,
             String normalizedValue
     );
+
+    List<PersonContact> findAllByPersonIdAndContactTypeOrderByPrimaryDescCreatedAtAscIdAsc(
+            UUID personId, PersonContactType contactType);
 }

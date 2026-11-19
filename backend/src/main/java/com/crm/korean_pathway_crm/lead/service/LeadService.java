@@ -14,6 +14,7 @@ import com.crm.korean_pathway_crm.person.entity.PersonContact;
 import com.crm.korean_pathway_crm.person.enums.PersonContactType;
 import com.crm.korean_pathway_crm.person.service.PersonContactService;
 import com.crm.korean_pathway_crm.person.service.PersonService;
+import com.crm.korean_pathway_crm.role.enums.SystemRoleCode;
 import com.crm.korean_pathway_crm.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -107,6 +108,55 @@ public class LeadService {
                 .updatedAt(lead.getUpdatedAt())
                 .sharedPhoneWarning(sharedPhone)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('LEADS.READ')")
+    public LeadResponse getLeadById(UUID leadId) {
+        User actor = currentActorService.requireCurrentActor();
+        Lead lead = leadRepository.findByIdAndDeletedAtIsNull(leadId)
+                .orElseThrow(() -> new AppException(ErrorCode.LEAD_NOT_FOUND));
+
+        String roleCode = actor.getRole().getCode();
+        boolean canReadAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
+                || SystemRoleCode.MANAGER.name().equals(roleCode);
+        if (!canReadAll && !actor.getId().equals(lead.getAssignedTo())) {
+            // 404 không tiết lộ Lead của counselor khác hoặc Lead chưa được giao.
+            throw new AppException(ErrorCode.LEAD_NOT_FOUND);
+        }
+
+        Person person = personService.getById(lead.getPersonId());
+        String phone = firstContactValue(person.getId(), PersonContactType.PHONE);
+        String email = firstContactValue(person.getId(), PersonContactType.EMAIL);
+
+        return LeadResponse.builder()
+                .id(lead.getId())
+                .personId(person.getId())
+                .fullName(person.getFullName())
+                .phone(phone)
+                .email(email)
+                .sourceId(lead.getSourceId())
+                .pipelineId(lead.getPipelineId())
+                .stageId(lead.getStageId())
+                .assignedTo(lead.getAssignedTo())
+                .status(lead.getStatus())
+                .campaignName(lead.getCampaignName())
+                .estimatedBudget(lead.getEstimatedBudget())
+                .currencyCode(lead.getCurrencyCode())
+                .lostReason(lead.getLostReason())
+                .firstContactAt(lead.getFirstContactAt())
+                .convertedAt(lead.getConvertedAt())
+                .createdAt(lead.getCreatedAt())
+                .updatedAt(lead.getUpdatedAt())
+                .build();
+    }
+
+    private String firstContactValue(UUID personId, PersonContactType type) {
+        return personContactService.findByPersonAndType(personId, type).stream()
+                .findFirst()
+                .map(contact -> type == PersonContactType.PHONE
+                        ? contact.getNormalizedValue() : contact.getValue())
+                .orElse(null);
     }
 
     private String normalizeRequiredName(String value) {
