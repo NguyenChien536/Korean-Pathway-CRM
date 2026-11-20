@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -23,6 +25,13 @@ public class PersonService {
         return personRepository.findById(personId)
                 .filter(person -> person.getDeletedAt() == null)
                 .orElseThrow(() -> new AppException(ErrorCode.PERSON_NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Person> findActiveByIds(Collection<UUID> personIds) {
+        return personRepository.findAllById(personIds).stream()
+                .filter(person -> person.getDeletedAt() == null)
+                .toList();
     }
 
     // When called by LeadService, this save joins its transaction so Person,

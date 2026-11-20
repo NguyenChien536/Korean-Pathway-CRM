@@ -4,6 +4,7 @@ import com.crm.korean_pathway_crm.person.entity.PersonContact;
 import com.crm.korean_pathway_crm.person.enums.PersonContactType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -15,4 +16,7 @@ public interface PersonContactRepository extends JpaRepository<PersonContact, UU
 
     List<PersonContact> findAllByPersonIdAndContactTypeOrderByPrimaryDescCreatedAtAscIdAsc(
             UUID personId, PersonContactType contactType);
+
+    List<PersonContact> findAllByPersonIdInAndContactTypeInOrderByPersonIdAscContactTypeAscPrimaryDescCreatedAtAscIdAsc(
+            Collection<UUID> personIds, Collection<PersonContactType> contactTypes);
 }

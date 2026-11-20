@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,6 +31,13 @@ public class PersonContactService {
     @Transactional(readOnly = true)
     public List<PersonContact> findByPersonAndType(UUID personId, PersonContactType type) {
         return personContactRepository.findAllByPersonIdAndContactTypeOrderByPrimaryDescCreatedAtAscIdAsc(personId, type);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PersonContact> findPhonesAndEmailsForPersons(Collection<UUID> personIds) {
+        return personContactRepository
+                .findAllByPersonIdInAndContactTypeInOrderByPersonIdAscContactTypeAscPrimaryDescCreatedAtAscIdAsc(
+                        personIds, List.of(PersonContactType.PHONE, PersonContactType.EMAIL));
     }
 
     // PHONE accepts raw input and applies the shared normalizer before lookup.

@@ -42,9 +42,11 @@ public class LeadCatalogService {
 
     @Transactional(readOnly = true)
     public UUID resolveActiveSourceId(UUID sourceId) {
+        //Kiểm tra tồn tại:
         if (sourceId == null) {
             return null;
         }
+        //Kiểm tra trạng thái kích hoạt: Nguồn này có đang ở trạng thái ACTIVE không
         return leadSourceRepository.findByIdAndStatus(sourceId, CatalogStatus.ACTIVE)
                 .map(LeadSource::getId)
                 .orElseThrow(() -> new AppException(ErrorCode.LEAD_SOURCE_NOT_FOUND));

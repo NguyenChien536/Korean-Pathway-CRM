@@ -3,6 +3,7 @@ package com.crm.korean_pathway_crm.lead.entity;
 import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
 import com.crm.korean_pathway_crm.user.entity.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -49,6 +50,7 @@ public class Lead {
     LeadStatus status = LeadStatus.OPEN;
 
     @Column(name = "campaign_name", length = 150)
+    @Size(max = 150)
     String campaignName;
 
     @Column(name = "estimated_budget", precision = 14, scale = 2)

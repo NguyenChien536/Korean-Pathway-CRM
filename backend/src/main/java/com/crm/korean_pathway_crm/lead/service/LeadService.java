@@ -1,13 +1,18 @@
 package com.crm.korean_pathway_crm.lead.service;
 
+import com.crm.korean_pathway_crm.common.dto.PageResponse;
 import com.crm.korean_pathway_crm.common.security.CurrentActorService;
 import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadCreationRequest;
+import com.crm.korean_pathway_crm.lead.dto.request.LeadFilterRequest;
+import com.crm.korean_pathway_crm.lead.dto.request.LeadUpdateRequest;
 import com.crm.korean_pathway_crm.lead.dto.response.LeadResponse;
 import com.crm.korean_pathway_crm.lead.entity.Lead;
 import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
+import com.crm.korean_pathway_crm.lead.mapper.LeadMapper;
 import com.crm.korean_pathway_crm.lead.repository.LeadRepository;
+import com.crm.korean_pathway_crm.lead.specification.LeadSpecification;
 import com.crm.korean_pathway_crm.person.dto.request.PersonCreationRequest;
 import com.crm.korean_pathway_crm.person.entity.Person;
 import com.crm.korean_pathway_crm.person.entity.PersonContact;
@@ -17,22 +22,39 @@ import com.crm.korean_pathway_crm.person.service.PersonService;
 import com.crm.korean_pathway_crm.role.enums.SystemRoleCode;
 import com.crm.korean_pathway_crm.user.entity.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class LeadService {
+    private static final Map<String, String> LEAD_SORT_FIELDS = Map.of(
+            "createdAt", "createdAt",
+            "updatedAt", "updatedAt",
+            "status", "status",
+            "campaignName", "campaignName",
+            "estimatedBudget", "estimatedBudget",
+            "id", "id"
+    );
+
     private final LeadRepository leadRepository;
     private final LeadCatalogService leadCatalogService;
     private final PersonService personService;
     private final PersonContactService personContactService;
     private final CurrentActorService currentActorService;
+    private final LeadMapper leadMapper;
 
     @Transactional
     @PreAuthorize("hasAuthority('LEADS.CREATE')")
@@ -78,36 +100,16 @@ public class LeadService {
             email = null;
         }
 
-        Lead lead = Lead.builder()
-                .personId(person.getId())
-                .sourceId(sourceId)
-                .pipelineId(initialStage.pipelineId())
-                .stageId(initialStage.stageId())
-                .assignedTo(actor.getId())
-                .status(LeadStatus.OPEN)
-                .campaignName(request.getCampaignName() == null ? null : request.getCampaignName().strip())
-                .createdBy(actor)
-                .updatedBy(actor)
-                .build();
+        Lead lead = leadMapper.toLead(request, person, initialStage, sourceId, actor);
+        lead.setCampaignName(normalizeCampaignName(request.getCampaignName()));
         lead = leadRepository.save(lead);
 
-        return LeadResponse.builder()
-                .id(lead.getId())
-                .personId(person.getId())
-                .fullName(person.getFullName())
-                .phone(phone.getNormalizedValue())
-                .email(email)
-                .sourceId(lead.getSourceId())
-                .pipelineId(lead.getPipelineId())
-                .stageId(lead.getStageId())
-                .assignedTo(lead.getAssignedTo())
-                .status(lead.getStatus())
-                .campaignName(lead.getCampaignName())
-                .currencyCode(lead.getCurrencyCode())
-                .createdAt(lead.getCreatedAt())
-                .updatedAt(lead.getUpdatedAt())
-                .sharedPhoneWarning(sharedPhone)
-                .build();
+        return leadMapper.toLeadResponse(
+                lead,
+                person,
+                phone.getNormalizedValue(),
+                email,
+                sharedPhone);
     }
 
     @Transactional(readOnly = true)
@@ -129,26 +131,130 @@ public class LeadService {
         String phone = firstContactValue(person.getId(), PersonContactType.PHONE);
         String email = firstContactValue(person.getId(), PersonContactType.EMAIL);
 
-        return LeadResponse.builder()
-                .id(lead.getId())
-                .personId(person.getId())
-                .fullName(person.getFullName())
-                .phone(phone)
-                .email(email)
-                .sourceId(lead.getSourceId())
-                .pipelineId(lead.getPipelineId())
-                .stageId(lead.getStageId())
-                .assignedTo(lead.getAssignedTo())
-                .status(lead.getStatus())
-                .campaignName(lead.getCampaignName())
-                .estimatedBudget(lead.getEstimatedBudget())
-                .currencyCode(lead.getCurrencyCode())
-                .lostReason(lead.getLostReason())
-                .firstContactAt(lead.getFirstContactAt())
-                .convertedAt(lead.getConvertedAt())
-                .createdAt(lead.getCreatedAt())
-                .updatedAt(lead.getUpdatedAt())
-                .build();
+        return leadMapper.toLeadResponse(lead, person, phone, email);
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('LEADS.READ')")
+    public PageResponse<LeadResponse> getAllLeads(LeadFilterRequest request) {
+        if (request == null || request.getPage() < 0 || request.getSize() < 1 || request.getSize() > 100) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER);
+        }
+        User actor = currentActorService.requireCurrentActor();
+        String roleCode = actor.getRole().getCode();
+
+        // Phân quyền dữ liệu: counselor chỉ thấy Lead được giao.
+        boolean canReadAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
+                || SystemRoleCode.MANAGER.name().equals(roleCode);
+
+        // Chỉ cho phép sort theo thuộc tính Lead đã công bố trong API.
+        String sortBy = StringUtils.hasText(request.getSortBy()) ? request.getSortBy().trim() : "createdAt";
+        String entityField = LEAD_SORT_FIELDS.get(sortBy);
+        if (entityField == null) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER);
+        }
+        Sort.Direction sortDir = Sort.Direction.DESC;
+        if (StringUtils.hasText(request.getSortDir())) {
+            try {
+                sortDir = Sort.Direction.fromString(request.getSortDir().trim());
+            } catch (IllegalArgumentException exception) {
+                throw new AppException(ErrorCode.INVALID_PARAMETER);
+            }
+        }
+        Sort sort = "id".equals(entityField)
+                ? Sort.by(new Sort.Order(sortDir, entityField))
+                : Sort.by(new Sort.Order(sortDir, entityField), Sort.Order.asc("id"));
+
+        // Tạo Pageable (page bắt đầu từ 0).
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), sort);
+
+        // Phạm vi và mọi filter đều được áp dụng trong DB trước khi đếm/phân trang.
+        Page<Lead> leadPage = leadRepository.findAll(
+                LeadSpecification.of(request, actor.getId(), canReadAll), pageable);
+
+        // Tải Person và Contact một lần cho cả trang, thay vì truy vấn riêng từng Lead.
+        Map<UUID, Person> personsById = new HashMap<>();
+        Map<UUID, String> phonesByPersonId = new HashMap<>();
+        Map<UUID, String> emailsByPersonId = new HashMap<>();
+        if (!leadPage.isEmpty()) {
+            List<UUID> personIds = leadPage.getContent().stream()
+                    .map(Lead::getPersonId).distinct().toList();
+            for (Person person : personService.findActiveByIds(personIds)) {
+                personsById.put(person.getId(), person);
+            }
+            // Repository xếp contact chính lên trước; putIfAbsent giữ contact ưu tiên.
+            for (PersonContact contact : personContactService.findPhonesAndEmailsForPersons(personIds)) {
+                UUID personId = contact.getPerson().getId();
+                if (contact.getContactType() == PersonContactType.PHONE) {
+                    phonesByPersonId.putIfAbsent(personId, contact.getNormalizedValue());
+                } else if (contact.getContactType() == PersonContactType.EMAIL) {
+                    emailsByPersonId.putIfAbsent(personId, contact.getValue());
+                }
+            }
+        }
+        Page<LeadResponse> responsePage = leadPage.map(lead -> {
+            Person person = personsById.get(lead.getPersonId());
+            if (person == null) {
+                throw new AppException(ErrorCode.PERSON_NOT_FOUND);
+            }
+            return leadMapper.toLeadResponse(lead, person,
+                    phonesByPersonId.get(person.getId()), emailsByPersonId.get(person.getId()));
+        });
+
+        return PageResponse.of(responsePage);
+    }
+
+    @Transactional
+    @PreAuthorize("hasAuthority('LEADS.UPDATE')")
+    public LeadResponse updateLead(UUID leadId, LeadUpdateRequest request) {
+        if (request == null || (request.getSourceId() == null
+                && request.getCampaignName() == null && request.getEstimatedBudget() == null)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+        Lead lead = leadRepository.findByIdAndDeletedAtIsNull(leadId)
+                .orElseThrow(() -> new AppException(ErrorCode.LEAD_NOT_FOUND));
+
+        // Admin/Manager sửa mọi Lead; counselor hoặc role khác chỉ sửa Lead được giao.
+        User actor = currentActorService.requireCurrentActor();
+        String roleCode = actor.getRole().getCode();
+        boolean canUpdateAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
+                || SystemRoleCode.MANAGER.name().equals(roleCode);
+        if (!canUpdateAll && !actor.getId().equals(lead.getAssignedTo())) {
+            // 404 không tiết lộ Lead của counselor khác hoặc Lead chưa được giao.
+            throw new AppException(ErrorCode.LEAD_NOT_FOUND);
+        }
+        if (lead.getStatus() != LeadStatus.OPEN) {
+            throw new AppException(ErrorCode.LEAD_NOT_MODIFIABLE);
+        }
+        UUID validatedSourceId = null;
+        if (request.getSourceId() != null) {
+            validatedSourceId = leadCatalogService.resolveActiveSourceId(request.getSourceId());
+        }
+
+        // Mapper chỉ cập nhật ngân sách; sourceId và campaignName cần quy tắc nghiệp vụ riêng.
+        leadMapper.updateLead(lead, request);
+        if (validatedSourceId != null) {
+            lead.setSourceId(validatedSourceId);
+        }
+        if (request.getCampaignName() != null) {
+            // Chuỗi rỗng hoặc chỉ có khoảng trắng nghĩa là xóa tên chiến dịch.
+            lead.setCampaignName(normalizeCampaignName(request.getCampaignName()));
+        }
+        lead.setUpdatedBy(actor);
+        Lead savedLead = leadRepository.saveAndFlush(lead);
+
+        Person person = personService.getById(savedLead.getPersonId());
+        String phone = firstContactValue(person.getId(), PersonContactType.PHONE);
+        String email = firstContactValue(person.getId(), PersonContactType.EMAIL);
+        return leadMapper.toLeadResponse(savedLead, person, phone, email);
+    }
+
+    private String normalizeCampaignName(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.strip();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private String firstContactValue(UUID personId, PersonContactType type) {

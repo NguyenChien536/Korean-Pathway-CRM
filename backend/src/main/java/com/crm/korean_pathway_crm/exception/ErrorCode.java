@@ -39,6 +39,7 @@ public enum ErrorCode {
     INVALID_PHONE(4005, "Số điện thoại không hợp lệ", HttpStatus.BAD_REQUEST),
     PERSON_CONFIRMATION_REQUIRED(4006, "Cần xác nhận người liên hệ trùng tên và số điện thoại", HttpStatus.CONFLICT),
     LEAD_NOT_FOUND(4010, "Không tìm thấy Lead", HttpStatus.NOT_FOUND),
+    LEAD_NOT_MODIFIABLE(4011, "Chỉ có thể cập nhật Lead đang mở", HttpStatus.CONFLICT),
 
     RESOURCE_NOT_FOUND(9000, "Không tìm thấy tài nguyên yêu cầu", HttpStatus.NOT_FOUND),
     METHOD_NOT_ALLOWED(9001, "Phương thức HTTP không được hỗ trợ", HttpStatus.METHOD_NOT_ALLOWED),
