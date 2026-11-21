@@ -10,6 +10,7 @@ import com.crm.korean_pathway_crm.lead.dto.request.LeadUpdateRequest;
 import com.crm.korean_pathway_crm.lead.dto.response.LeadResponse;
 import com.crm.korean_pathway_crm.lead.entity.Lead;
 import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
+import com.crm.korean_pathway_crm.lead.enums.PersonResolution;
 import com.crm.korean_pathway_crm.lead.mapper.LeadMapper;
 import com.crm.korean_pathway_crm.lead.repository.LeadRepository;
 import com.crm.korean_pathway_crm.lead.specification.LeadSpecification;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -62,43 +64,66 @@ public class LeadService {
         if (request == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
+        PersonResolution resolution = request.getPersonResolution();
+        UUID selectedPersonId = request.getExistingPersonId();
+        if ((resolution == PersonResolution.USE_EXISTING_PERSON) != (selectedPersonId != null)) {
+            throw new AppException(ErrorCode.PERSON_CONFIRMATION_INVALID);
+        }
         User actor = currentActorService.requireCurrentActor();
         String fullName = normalizeRequiredName(request.getFullName());
         String nameForMatch = normalizeNameForMatch(fullName);
 
         // Tìm các Person có cùng số. Person đã xóa mềm không tham gia so khớp.
         List<PersonContact> contactsWithSamePhone = personContactService.findByPhone(request.getPhone());
-        boolean sharedPhone = false;
+        Map<UUID, PersonContact> contactsByPersonId = new LinkedHashMap<>();
+        Map<UUID, PersonContact> matchingContacts = new LinkedHashMap<>();
         for (PersonContact contact : contactsWithSamePhone) {
             Person existing = contact.getPerson();
             if (existing.getDeletedAt() != null) {
                 continue;
             }
-            sharedPhone = true;
+            contactsByPersonId.putIfAbsent(existing.getId(), contact);
             if (normalizeNameForMatch(existing.getFullName()).equals(nameForMatch)) {
-                // Chưa có bước xác nhận dùng Person cũ hay tạo người mới.
-                // Không tự gộp người và không trả ID của Person khác cho counselor.
-                throw new AppException(ErrorCode.PERSON_CONFIRMATION_REQUIRED);
+                matchingContacts.putIfAbsent(existing.getId(), contact);
             }
+        }
+        if (!matchingContacts.isEmpty() && resolution == null) {
+            // Client tìm ứng viên trong GET /leads theo phạm vi được xem rồi gửi lựa chọn.
+            throw new AppException(ErrorCode.PERSON_CONFIRMATION_REQUIRED);
         }
 
         // Tra cứu cấu hình bằng code/trạng thái, không ghi cứng UUID trong Java.
         LeadCatalogService.InitialLeadStage initialStage = leadCatalogService.resolveInitialLeadStage();
         UUID sourceId = leadCatalogService.resolveActiveSourceId(request.getSourceId());
 
-        // Cả Person, Contact và Lead cùng nằm trong transaction này.
-        Person person = personService.create(
-                PersonCreationRequest.builder().fullName(fullName).build(), actor);
-        PersonContact phone = personContactService.createPhone(person, request.getPhone());
-
-        String email = request.getEmail();
-        if (email != null && !email.isBlank()) {
-            email = email.strip();
-            personContactService.create(person, PersonContactType.EMAIL,
-                    email, email.toLowerCase(Locale.ROOT));
+        Person person;
+        PersonContact phone;
+        boolean sharedPhone;
+        if (resolution == PersonResolution.USE_EXISTING_PERSON) {
+            phone = matchingContacts.get(selectedPersonId);
+            if (phone == null) {
+                throw new AppException(ErrorCode.PERSON_NOT_FOUND);
+            }
+            person = phone.getPerson();
+            List<Lead> previousLeads = leadRepository
+                    .findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(person.getId());
+            ensureCanReusePerson(actor, person, previousLeads);
+            if (previousLeads.stream().anyMatch(lead -> lead.getStatus() == LeadStatus.OPEN)) {
+                throw new AppException(ErrorCode.LEAD_ALREADY_OPEN);
+            }
+            if (previousLeads.stream().anyMatch(lead -> lead.getStatus() == LeadStatus.CONVERTED)) {
+                throw new AppException(ErrorCode.PERSON_ALREADY_CUSTOMER);
+            }
+            sharedPhone = contactsByPersonId.keySet().stream().anyMatch(id -> !id.equals(person.getId()));
         } else {
-            email = null;
+            // Cả Person, Contact và Lead mới cùng nằm trong transaction này.
+            person = personService.create(
+                    PersonCreationRequest.builder().fullName(fullName).build(), actor);
+            phone = personContactService.createPhone(person, request.getPhone());
+            sharedPhone = !contactsByPersonId.isEmpty();
         }
+
+        String email = saveOrFindEmail(person, request.getEmail());
 
         Lead lead = leadMapper.toLead(request, person, initialStage, sourceId, actor);
         lead.setCampaignName(normalizeCampaignName(request.getCampaignName()));
@@ -110,6 +135,41 @@ public class LeadService {
                 phone.getNormalizedValue(),
                 email,
                 sharedPhone);
+    }
+
+    private void ensureCanReusePerson(User actor, Person person, List<Lead> previousLeads) {
+        String roleCode = actor.getRole().getCode();
+        boolean canReadAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
+                || SystemRoleCode.MANAGER.name().equals(roleCode);
+        boolean createdByActorWithoutLead = previousLeads.isEmpty() && person.getCreatedBy() != null
+                && actor.getId().equals(person.getCreatedBy().getId());
+        boolean assignedToActor = previousLeads.stream()
+                .anyMatch(lead -> actor.getId().equals(lead.getAssignedTo()));
+        boolean activeLeadOutsideScope = previousLeads.stream()
+                .anyMatch(lead -> (lead.getStatus() == LeadStatus.OPEN
+                        || lead.getStatus() == LeadStatus.CONVERTED)
+                        && !actor.getId().equals(lead.getAssignedTo()));
+        if (!canReadAll && (activeLeadOutsideScope || (!createdByActorWithoutLead && !assignedToActor))) {
+            // Không tiết lộ Person thuộc phạm vi của counselor khác.
+            throw new AppException(ErrorCode.PERSON_NOT_FOUND);
+        }
+    }
+
+    private String saveOrFindEmail(Person person, String requestedEmail) {
+        List<PersonContact> existingEmails = personContactService
+                .findByPersonAndType(person.getId(), PersonContactType.EMAIL);
+        if (!StringUtils.hasText(requestedEmail)) {
+            return existingEmails.isEmpty() ? null : existingEmails.get(0).getValue();
+        }
+        String email = requestedEmail.strip();
+        for (PersonContact contact : existingEmails) {
+            if (contact.getNormalizedValue().equalsIgnoreCase(email)) {
+                return contact.getValue();
+            }
+        }
+        personContactService.create(person, PersonContactType.EMAIL,
+                email, email.toLowerCase(Locale.ROOT));
+        return email;
     }
 
     @Transactional(readOnly = true)

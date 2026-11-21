@@ -8,6 +8,7 @@ import com.crm.korean_pathway_crm.lead.dto.request.LeadFilterRequest;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadUpdateRequest;
 import com.crm.korean_pathway_crm.lead.entity.Lead;
 import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
+import com.crm.korean_pathway_crm.lead.enums.PersonResolution;
 import com.crm.korean_pathway_crm.lead.mapper.LeadMapper;
 import com.crm.korean_pathway_crm.lead.repository.LeadRepository;
 import com.crm.korean_pathway_crm.lead.service.LeadCatalogService;
@@ -93,6 +94,226 @@ class LeadServiceTest {
                 .isInstanceOfSatisfying(AppException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_CONFIRMATION_REQUIRED));
         verifyNoInteractions(personService, leadRepository);
+    }
+
+    @Test
+    void confirmationCanCreateAnotherPersonSharingTheSamePhone() {
+        User actor = User.builder().id(UUID.randomUUID()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An").build();
+        Person newPerson = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An").build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678"))
+                .thenReturn(List.of(PersonContact.builder().person(existing).build()));
+        when(leadCatalogService.resolveInitialLeadStage())
+                .thenReturn(new LeadCatalogService.InitialLeadStage(UUID.randomUUID(), UUID.randomUUID()));
+        when(personService.create(any(), eq(actor))).thenReturn(newPerson);
+        when(personContactService.createPhone(newPerson, "0912345678"))
+                .thenReturn(PersonContact.builder().normalizedValue("+84912345678").build());
+        when(leadRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setPersonResolution(PersonResolution.CREATE_NEW_PERSON);
+        var response = leadService.createLead(request);
+
+        assertThat(response.getPersonId()).isEqualTo(newPerson.getId());
+        assertThat(response.isSharedPhoneWarning()).isTrue();
+        verify(leadRepository, never()).findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(existing.getId());
+    }
+
+    @Test
+    void confirmationReusesPersonWithLostLeadWithoutReopeningIt() {
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("COUNSELOR").build()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An")
+                .createdBy(actor).build();
+        PersonContact phone = PersonContact.builder().person(existing)
+                .normalizedValue("+84912345678").build();
+        Lead lostLead = Lead.builder().personId(existing.getId()).assignedTo(actor.getId())
+                .status(LeadStatus.LOST).build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678")).thenReturn(List.of(phone));
+        when(leadRepository.findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(existing.getId()))
+                .thenReturn(List.of(lostLead));
+        when(leadCatalogService.resolveInitialLeadStage())
+                .thenReturn(new LeadCatalogService.InitialLeadStage(UUID.randomUUID(), UUID.randomUUID()));
+        when(leadRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LeadCreationRequest request = request("  NGUYỄN   VĂN AN  ");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        request.setExistingPersonId(existing.getId());
+        var response = leadService.createLead(request);
+
+        assertThat(response.getPersonId()).isEqualTo(existing.getId());
+        assertThat(response.getStatus()).isEqualTo(LeadStatus.OPEN);
+        assertThat(lostLead.getStatus()).isEqualTo(LeadStatus.LOST);
+        assertThat(response.isSharedPhoneWarning()).isFalse();
+        verify(personService, never()).create(any(), any());
+        verify(personContactService, never()).createPhone(any(), any());
+    }
+
+    @Test
+    void reusingPersonDoesNotInsertAnEmailThatAlreadyExists() {
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("MANAGER").build()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An").build();
+        PersonContact phone = PersonContact.builder().person(existing)
+                .normalizedValue("+84912345678").build();
+        PersonContact email = PersonContact.builder().person(existing).value("an@example.com")
+                .normalizedValue("an@example.com").build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678")).thenReturn(List.of(phone));
+        when(leadRepository.findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(existing.getId()))
+                .thenReturn(List.of(Lead.builder().status(LeadStatus.LOST).build()));
+        when(leadCatalogService.resolveInitialLeadStage())
+                .thenReturn(new LeadCatalogService.InitialLeadStage(UUID.randomUUID(), UUID.randomUUID()));
+        when(personContactService.findByPersonAndType(existing.getId(), PersonContactType.EMAIL))
+                .thenReturn(List.of(email));
+        when(leadRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setEmail("AN@EXAMPLE.COM");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        request.setExistingPersonId(existing.getId());
+        var response = leadService.createLead(request);
+
+        assertThat(response.getEmail()).isEqualTo("an@example.com");
+        verify(personContactService, never()).create(eq(existing), eq(PersonContactType.EMAIL), any(), any());
+    }
+
+    @Test
+    void existingPersonWithOpenLeadCannotGetAnotherOpenLead() {
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("MANAGER").build()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An").build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678"))
+                .thenReturn(List.of(PersonContact.builder().person(existing).build()));
+        when(leadRepository.findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(existing.getId()))
+                .thenReturn(List.of(Lead.builder().status(LeadStatus.OPEN).build()));
+
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        request.setExistingPersonId(existing.getId());
+        assertThatThrownBy(() -> leadService.createLead(request))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.LEAD_ALREADY_OPEN));
+        verify(leadRepository, never()).save(any());
+    }
+
+    @Test
+    void counselorCannotSelectPersonManagedByAnotherCounselor() {
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("COUNSELOR").build()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An").build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678"))
+                .thenReturn(List.of(PersonContact.builder().person(existing).build()));
+        when(leadRepository.findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(existing.getId()))
+                .thenReturn(List.of(Lead.builder().assignedTo(UUID.randomUUID()).build()));
+
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        request.setExistingPersonId(existing.getId());
+        assertThatThrownBy(() -> leadService.createLead(request))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_NOT_FOUND));
+        verify(leadRepository, never()).save(any());
+    }
+
+    @Test
+    void creatorCannotReusePersonAfterItsLeadWasAssignedToAnotherCounselor() {
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("COUNSELOR").build()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An")
+                .createdBy(actor).build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678"))
+                .thenReturn(List.of(PersonContact.builder().person(existing).build()));
+        when(leadRepository.findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(existing.getId()))
+                .thenReturn(List.of(Lead.builder().assignedTo(UUID.randomUUID()).build()));
+
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        request.setExistingPersonId(existing.getId());
+        assertThatThrownBy(() -> leadService.createLead(request))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_NOT_FOUND));
+        verify(leadRepository, never()).save(any());
+    }
+
+    @Test
+    void oldCounselorCannotSeeThatPersonNowHasAnOpenLeadWithAnotherCounselor() {
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("COUNSELOR").build()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An").build();
+        Lead oldLead = Lead.builder().status(LeadStatus.LOST).assignedTo(actor.getId()).build();
+        Lead currentLead = Lead.builder().status(LeadStatus.OPEN).assignedTo(UUID.randomUUID()).build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678"))
+                .thenReturn(List.of(PersonContact.builder().person(existing).build()));
+        when(leadRepository.findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(existing.getId()))
+                .thenReturn(List.of(currentLead, oldLead));
+
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        request.setExistingPersonId(existing.getId());
+        assertThatThrownBy(() -> leadService.createLead(request))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_NOT_FOUND));
+        verify(leadRepository, never()).save(any());
+    }
+
+    @Test
+    void selectedPersonMustReallyMatchNameAndPhone() {
+        User actor = User.builder().id(UUID.randomUUID()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An").build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678"))
+                .thenReturn(List.of(PersonContact.builder().person(existing).build()));
+
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        request.setExistingPersonId(UUID.randomUUID());
+        assertThatThrownBy(() -> leadService.createLead(request))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_NOT_FOUND));
+        verify(leadRepository, never()).save(any());
+    }
+
+    @Test
+    void selectedPersonWhoAlreadyConvertedCannotGetNewLead() {
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("MANAGER").build()).build();
+        Person existing = Person.builder().id(UUID.randomUUID()).fullName("Nguyễn Văn An").build();
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+        when(personContactService.findByPhone("0912345678"))
+                .thenReturn(List.of(PersonContact.builder().person(existing).build()));
+        when(leadRepository.findAllByPersonIdAndDeletedAtIsNullOrderByCreatedAtDesc(existing.getId()))
+                .thenReturn(List.of(Lead.builder().status(LeadStatus.CONVERTED).build()));
+
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        request.setExistingPersonId(existing.getId());
+        assertThatThrownBy(() -> leadService.createLead(request))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_ALREADY_CUSTOMER));
+        verify(leadRepository, never()).save(any());
+    }
+
+    @Test
+    void confirmationFieldsMustBeConsistent() {
+        LeadCreationRequest request = request("Nguyễn Văn An");
+        request.setPersonResolution(PersonResolution.USE_EXISTING_PERSON);
+        assertThatThrownBy(() -> leadService.createLead(request))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_CONFIRMATION_INVALID));
+        verifyNoInteractions(currentActorService, personContactService, personService, leadRepository);
+
+        request.setPersonResolution(PersonResolution.CREATE_NEW_PERSON);
+        request.setExistingPersonId(UUID.randomUUID());
+        assertThatThrownBy(() -> leadService.createLead(request))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.PERSON_CONFIRMATION_INVALID));
     }
 
     @Test

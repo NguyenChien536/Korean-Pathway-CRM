@@ -1,5 +1,6 @@
 package com.crm.korean_pathway_crm.lead.dto.request;
 
+import com.crm.korean_pathway_crm.lead.enums.PersonResolution;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -32,4 +33,9 @@ public class LeadCreationRequest {
 
     @Size(max = 150, message = "Tên chiến dịch tối đa 150 ký tự")
     String campaignName;
+
+    // Chỉ gửi khi đã xác nhận cảnh báo trùng tên và số điện thoại.
+    PersonResolution personResolution;
+    // Bắt buộc khi USE_EXISTING_PERSON; không gửi khi CREATE_NEW_PERSON.
+    UUID existingPersonId;
 }

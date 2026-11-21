@@ -38,8 +38,11 @@ public enum ErrorCode {
     LEAD_INITIAL_STAGE_NOT_CONFIGURED(4004, "Chưa cấu hình giai đoạn đầu cho Lead", HttpStatus.INTERNAL_SERVER_ERROR),
     INVALID_PHONE(4005, "Số điện thoại không hợp lệ", HttpStatus.BAD_REQUEST),
     PERSON_CONFIRMATION_REQUIRED(4006, "Cần xác nhận người liên hệ trùng tên và số điện thoại", HttpStatus.CONFLICT),
+    PERSON_CONFIRMATION_INVALID(4007, "Lựa chọn xác nhận người liên hệ không hợp lệ", HttpStatus.BAD_REQUEST),
     LEAD_NOT_FOUND(4010, "Không tìm thấy Lead", HttpStatus.NOT_FOUND),
     LEAD_NOT_MODIFIABLE(4011, "Chỉ có thể cập nhật Lead đang mở", HttpStatus.CONFLICT),
+    LEAD_ALREADY_OPEN(4012, "Người liên hệ đã có Lead đang mở", HttpStatus.CONFLICT),
+    PERSON_ALREADY_CUSTOMER(4013, "Người liên hệ đã là khách hàng", HttpStatus.CONFLICT),
 
     RESOURCE_NOT_FOUND(9000, "Không tìm thấy tài nguyên yêu cầu", HttpStatus.NOT_FOUND),
     METHOD_NOT_ALLOWED(9001, "Phương thức HTTP không được hỗ trợ", HttpStatus.METHOD_NOT_ALLOWED),
