@@ -1,6 +1,7 @@
 package com.crm.korean_pathway_crm.lead.controller;
 
 import com.crm.korean_pathway_crm.common.dto.PageResponse;
+import com.crm.korean_pathway_crm.lead.dto.request.LeadAssignmentRequest;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadCreationRequest;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadFilterRequest;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadUpdateRequest;
@@ -51,6 +52,13 @@ public class LeadController {
     public ApiResponse<LeadResponse> updateLead(@PathVariable UUID leadId, @Valid @RequestBody LeadUpdateRequest request) {
         return ApiResponse.<LeadResponse>builder()
                 .result(leadService.updateLead(leadId, request))
+                .build();
+    }
+
+    @PatchMapping("/{leadId}/assignee")
+    public ApiResponse<LeadResponse> assignLead(@PathVariable UUID leadId, @Valid @RequestBody LeadAssignmentRequest request) {
+        return ApiResponse.<LeadResponse>builder()
+                .result(leadService.assignLead(leadId, request))
                 .build();
     }
 }

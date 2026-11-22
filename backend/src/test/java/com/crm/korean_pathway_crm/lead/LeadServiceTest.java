@@ -4,6 +4,7 @@ import com.crm.korean_pathway_crm.common.security.CurrentActorService;
 import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadCreationRequest;
+import com.crm.korean_pathway_crm.lead.dto.request.LeadAssignmentRequest;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadFilterRequest;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadUpdateRequest;
 import com.crm.korean_pathway_crm.lead.entity.Lead;
@@ -19,7 +20,9 @@ import com.crm.korean_pathway_crm.person.enums.PersonContactType;
 import com.crm.korean_pathway_crm.person.service.PersonContactService;
 import com.crm.korean_pathway_crm.person.service.PersonService;
 import com.crm.korean_pathway_crm.role.entity.Role;
+import com.crm.korean_pathway_crm.role.enums.RoleStatus;
 import com.crm.korean_pathway_crm.user.entity.User;
+import com.crm.korean_pathway_crm.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mapstruct.factory.Mappers;
@@ -49,9 +52,77 @@ class LeadServiceTest {
     @Mock PersonService personService;
     @Mock PersonContactService personContactService;
     @Mock CurrentActorService currentActorService;
+    @Mock UserRepository userRepository;
     // Dùng mapper thật để test cả dữ liệu do MapStruct chuyển, không mock response.
     @Spy LeadMapper leadMapper = Mappers.getMapper(LeadMapper.class);
     @InjectMocks LeadService leadService;
+
+    @Test
+    void managerAssignsOpenLeadToActiveCounselor() {
+        UUID leadId = UUID.randomUUID();
+        UUID personId = UUID.randomUUID();
+        UUID assigneeId = UUID.randomUUID();
+        User manager = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("MANAGER").build()).build();
+        User counselor = User.builder().id(assigneeId).isActive(true)
+                .role(Role.builder().code("COUNSELOR").status(RoleStatus.ACTIVE).build()).build();
+        Lead lead = Lead.builder().id(leadId).personId(personId).status(LeadStatus.OPEN).build();
+        when(leadRepository.findByIdAndDeletedAtIsNull(leadId)).thenReturn(Optional.of(lead));
+        when(currentActorService.requireCurrentActor()).thenReturn(manager);
+        when(userRepository.findWithRoleById(assigneeId)).thenReturn(Optional.of(counselor));
+        when(leadRepository.saveAndFlush(lead)).thenReturn(lead);
+        when(personService.getById(personId)).thenReturn(Person.builder().id(personId).fullName("An").build());
+
+        var response = leadService.assignLead(leadId, new LeadAssignmentRequest(assigneeId));
+
+        assertThat(response.getAssignedTo()).isEqualTo(assigneeId);
+        assertThat(lead.getUpdatedBy()).isSameAs(manager);
+        verify(leadRepository).saveAndFlush(lead);
+    }
+
+    @Test
+    void cannotAssignLeadToInactiveUserOrNonCounselor() {
+        UUID leadId = UUID.randomUUID();
+        UUID assigneeId = UUID.randomUUID();
+        User manager = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("MANAGER").build()).build();
+        Lead lead = Lead.builder().status(LeadStatus.OPEN).build();
+        when(leadRepository.findByIdAndDeletedAtIsNull(leadId)).thenReturn(Optional.of(lead));
+        when(currentActorService.requireCurrentActor()).thenReturn(manager);
+        when(userRepository.findWithRoleById(assigneeId)).thenReturn(Optional.of(
+                User.builder().id(assigneeId).isActive(true)
+                        .role(Role.builder().code("MANAGER").status(RoleStatus.ACTIVE).build()).build()));
+
+        assertThatThrownBy(() -> leadService.assignLead(leadId, new LeadAssignmentRequest(assigneeId)))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.LEAD_ASSIGNEE_INELIGIBLE));
+
+        when(userRepository.findWithRoleById(assigneeId)).thenReturn(Optional.of(
+                User.builder().id(assigneeId).isActive(false)
+                        .role(Role.builder().code("COUNSELOR").status(RoleStatus.ACTIVE).build()).build()));
+        assertThatThrownBy(() -> leadService.assignLead(leadId, new LeadAssignmentRequest(assigneeId)))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.LEAD_ASSIGNEE_INELIGIBLE));
+
+        assertThat(lead.getAssignedTo()).isNull();
+        verify(leadRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void counselorCannotAssignLeadOutsideTheirScope() {
+        UUID leadId = UUID.randomUUID();
+        User actor = User.builder().id(UUID.randomUUID())
+                .role(Role.builder().code("COUNSELOR").build()).build();
+        when(leadRepository.findByIdAndDeletedAtIsNull(leadId)).thenReturn(Optional.of(
+                Lead.builder().assignedTo(UUID.randomUUID()).status(LeadStatus.OPEN).build()));
+        when(currentActorService.requireCurrentActor()).thenReturn(actor);
+
+        assertThatThrownBy(() -> leadService.assignLead(leadId, new LeadAssignmentRequest(UUID.randomUUID())))
+                .isInstanceOfSatisfying(AppException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.LEAD_NOT_FOUND));
+        verifyNoInteractions(userRepository);
+        verify(leadRepository, never()).saveAndFlush(any());
+    }
 
     @Test
     void createsLeadForNewPerson() {
