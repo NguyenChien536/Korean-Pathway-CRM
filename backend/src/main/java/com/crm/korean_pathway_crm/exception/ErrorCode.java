@@ -44,6 +44,7 @@ public enum ErrorCode {
     LEAD_ALREADY_OPEN(4012, "Người liên hệ đã có Lead đang mở", HttpStatus.CONFLICT),
     PERSON_ALREADY_CUSTOMER(4013, "Người liên hệ đã là khách hàng", HttpStatus.CONFLICT),
     LEAD_ASSIGNEE_INELIGIBLE(4014, "Người được giao phải là counselor đang hoạt động", HttpStatus.CONFLICT),
+    LEAD_ACTIVITY_NOT_ALLOWED(4015, "Chỉ có thể ghi tương tác cho Lead đang mở", HttpStatus.CONFLICT),
 
     RESOURCE_NOT_FOUND(9000, "Không tìm thấy tài nguyên yêu cầu", HttpStatus.NOT_FOUND),
     METHOD_NOT_ALLOWED(9001, "Phương thức HTTP không được hỗ trợ", HttpStatus.METHOD_NOT_ALLOWED),
