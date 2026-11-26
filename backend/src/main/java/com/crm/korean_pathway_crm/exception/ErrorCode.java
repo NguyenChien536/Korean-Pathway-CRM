@@ -46,6 +46,9 @@ public enum ErrorCode {
     LEAD_ASSIGNEE_INELIGIBLE(4014, "Người được giao phải là counselor đang hoạt động", HttpStatus.CONFLICT),
     LEAD_ACTIVITY_NOT_ALLOWED(4015, "Chỉ có thể ghi tương tác cho Lead đang mở", HttpStatus.CONFLICT),
 
+    LEAD_STAGE_UNAVAILABLE(4016, "Stage phải đang hoạt động, thuộc đúng pipeline và chưa kết thúc", HttpStatus.CONFLICT),
+    LEAD_PIPELINE_UNAVAILABLE(4017, "Pipeline của Lead không khả dụng", HttpStatus.CONFLICT),
+
     RESOURCE_NOT_FOUND(9000, "Không tìm thấy tài nguyên yêu cầu", HttpStatus.NOT_FOUND),
     METHOD_NOT_ALLOWED(9001, "Phương thức HTTP không được hỗ trợ", HttpStatus.METHOD_NOT_ALLOWED),
     UNSUPPORTED_MEDIA_TYPE(9002, "Định dạng dữ liệu gửi lên không được hỗ trợ", HttpStatus.UNSUPPORTED_MEDIA_TYPE),
