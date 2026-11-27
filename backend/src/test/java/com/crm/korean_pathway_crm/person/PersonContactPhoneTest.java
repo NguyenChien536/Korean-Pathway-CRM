@@ -9,6 +9,7 @@ import com.crm.korean_pathway_crm.person.service.PhoneNormalizer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -19,6 +20,18 @@ import static org.mockito.Mockito.when;
 class PersonContactPhoneTest {
     private final PersonContactRepository repository = mock(PersonContactRepository.class);
     private final PersonContactService service = new PersonContactService(repository, new PhoneNormalizer());
+
+    @Test
+    void firstContactUsesCanonicalPhoneAndKeepsDisplayEmail() {
+        UUID personId = UUID.randomUUID();
+        when(repository.findAllByPersonIdAndContactTypeOrderByPrimaryDescCreatedAtAscIdAsc(personId, PersonContactType.PHONE))
+                .thenReturn(List.of(PersonContact.builder().value("0912345678").normalizedValue("+84912345678").build()));
+        when(repository.findAllByPersonIdAndContactTypeOrderByPrimaryDescCreatedAtAscIdAsc(personId, PersonContactType.EMAIL))
+                .thenReturn(List.of(PersonContact.builder().value("An@example.com").normalizedValue("an@example.com").build()));
+        assertThat(service.findFirstValue(personId, PersonContactType.PHONE)).isEqualTo("+84912345678");
+        assertThat(service.findFirstValue(personId, PersonContactType.EMAIL)).isEqualTo("An@example.com");
+        assertThat(service.findFirstValue(UUID.randomUUID(), PersonContactType.PHONE)).isNull();
+    }
 
     @Test
     void searchAndSaveUseTheSameCanonicalPhone() {

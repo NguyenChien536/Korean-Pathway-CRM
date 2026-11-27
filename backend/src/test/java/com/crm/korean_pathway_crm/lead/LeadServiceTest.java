@@ -12,6 +12,7 @@ import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
 import com.crm.korean_pathway_crm.lead.enums.PersonResolution;
 import com.crm.korean_pathway_crm.lead.mapper.LeadMapper;
 import com.crm.korean_pathway_crm.lead.repository.LeadRepository;
+import com.crm.korean_pathway_crm.lead.security.LeadAccessPolicy;
 import com.crm.korean_pathway_crm.lead.service.LeadCatalogService;
 import com.crm.korean_pathway_crm.lead.service.LeadService;
 import com.crm.korean_pathway_crm.person.entity.Person;
@@ -53,6 +54,7 @@ class LeadServiceTest {
     @Mock PersonContactService personContactService;
     @Mock CurrentActorService currentActorService;
     @Mock UserRepository userRepository;
+    @Spy LeadAccessPolicy leadAccessPolicy = new LeadAccessPolicy();
     // Dùng mapper thật để test cả dữ liệu do MapStruct chuyển, không mock response.
     @Spy LeadMapper leadMapper = Mappers.getMapper(LeadMapper.class);
     @InjectMocks LeadService leadService;
@@ -398,10 +400,10 @@ class LeadServiceTest {
         when(currentActorService.requireCurrentActor()).thenReturn(actor);
         when(leadRepository.findByIdAndDeletedAtIsNull(leadId)).thenReturn(Optional.of(lead));
         when(personService.getById(personId)).thenReturn(person);
-        when(personContactService.findByPersonAndType(personId, PersonContactType.PHONE))
-                .thenReturn(List.of(PersonContact.builder().value("0912345678").normalizedValue("+84912345678").build()));
-        when(personContactService.findByPersonAndType(personId, PersonContactType.EMAIL))
-                .thenReturn(List.of(PersonContact.builder().value("an@example.com").build()));
+        when(personContactService.findFirstValue(personId, PersonContactType.PHONE))
+                .thenReturn("+84912345678");
+        when(personContactService.findFirstValue(personId, PersonContactType.EMAIL))
+                .thenReturn("an@example.com");
 
         var response = leadService.getLeadById(leadId);
 

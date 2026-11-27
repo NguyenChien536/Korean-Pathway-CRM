@@ -12,6 +12,7 @@ import com.crm.korean_pathway_crm.exception.ErrorCode;
 import com.crm.korean_pathway_crm.lead.entity.Lead;
 import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
 import com.crm.korean_pathway_crm.lead.repository.LeadRepository;
+import com.crm.korean_pathway_crm.lead.security.LeadAccessPolicy;
 import com.crm.korean_pathway_crm.role.entity.Role;
 import com.crm.korean_pathway_crm.user.entity.User;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ class ActivityServiceTest {
     @Mock ActivityRepository activities;
     @Mock LeadRepository leads;
     @Mock CurrentActorService currentActorService;
+    @Spy LeadAccessPolicy leadAccessPolicy = new LeadAccessPolicy();
     @Spy ActivityMapper mapper = Mappers.getMapper(ActivityMapper.class);
     @InjectMocks ActivityService service;
 

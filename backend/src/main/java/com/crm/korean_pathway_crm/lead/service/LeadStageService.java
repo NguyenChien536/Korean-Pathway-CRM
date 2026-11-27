@@ -8,6 +8,7 @@ import com.crm.korean_pathway_crm.lead.dto.request.LeadStageUpdateRequest;
 import com.crm.korean_pathway_crm.lead.dto.response.LeadResponse;
 import com.crm.korean_pathway_crm.lead.dto.response.LeadStageResponse;
 import com.crm.korean_pathway_crm.lead.entity.Lead;
+import com.crm.korean_pathway_crm.lead.security.LeadAccessPolicy;
 import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
 import com.crm.korean_pathway_crm.lead.mapper.LeadMapper;
 import com.crm.korean_pathway_crm.lead.mapper.LeadStageMapper;
@@ -23,7 +24,6 @@ import com.crm.korean_pathway_crm.pipeline.enums.PipelineStageCategory;
 import com.crm.korean_pathway_crm.pipeline.repository.PipelineRepository;
 import com.crm.korean_pathway_crm.pipeline.repository.PipelineStageRepository;
 import com.crm.korean_pathway_crm.pipeline.repository.StageHistoryRepository;
-import com.crm.korean_pathway_crm.role.enums.SystemRoleCode;
 import com.crm.korean_pathway_crm.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,6 +37,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class LeadStageService {
     private final LeadRepository leadRepository;
+    private final LeadAccessPolicy leadAccessPolicy;
     private final PipelineRepository pipelineRepository;
     private final PipelineStageRepository stageRepository;
     private final StageHistoryRepository historyRepository;
@@ -52,7 +53,7 @@ public class LeadStageService {
         User actor = currentActorService.requireCurrentActor();
         Lead lead = leadRepository.findByIdAndDeletedAtIsNull(leadId)
                 .orElseThrow(() -> new AppException(ErrorCode.LEAD_NOT_FOUND));
-        ensureAccessible(lead, actor);
+        leadAccessPolicy.ensureAccessible(lead, actor);
         ensureActiveLeadPipeline(lead.getPipelineId());
 
         // Dùng pipeline của Lead, không dùng pipeline mặc định: cấu hình mặc định có thể thay đổi.
@@ -71,7 +72,7 @@ public class LeadStageService {
         // Khóa Lead đến cuối transaction để hai yêu cầu đổi stage không cùng ghi lịch sử từ stage cũ.
         Lead lead = leadRepository.findForStageUpdate(leadId)
                 .orElseThrow(() -> new AppException(ErrorCode.LEAD_NOT_FOUND));
-        ensureAccessible(lead, actor);
+        leadAccessPolicy.ensureAccessible(lead, actor);
         if (lead.getStatus() != LeadStatus.OPEN) {
             throw new AppException(ErrorCode.LEAD_NOT_MODIFIABLE);
         }
@@ -97,17 +98,8 @@ public class LeadStageService {
         // Gửi lại stage hiện tại không tạo lịch sử mới. Status của Lead vẫn là OPEN.
         Person person = personService.getById(lead.getPersonId());
         return leadMapper.toLeadResponse(lead, person,
-                contactValue(person.getId(), PersonContactType.PHONE),
-                contactValue(person.getId(), PersonContactType.EMAIL));
-    }
-
-    private void ensureAccessible(Lead lead, User actor) {
-        String roleCode = actor.getRole().getCode();
-        boolean canAccessAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
-                || SystemRoleCode.MANAGER.name().equals(roleCode);
-        if (!canAccessAll && !actor.getId().equals(lead.getAssignedTo())) {
-            throw new AppException(ErrorCode.LEAD_NOT_FOUND);
-        }
+                contactService.findFirstValue(person.getId(), PersonContactType.PHONE),
+                contactService.findFirstValue(person.getId(), PersonContactType.EMAIL));
     }
 
     private void ensureActiveLeadPipeline(UUID pipelineId) {
@@ -115,12 +107,5 @@ public class LeadStageService {
                 .filter(pipeline -> pipeline.getEntityType() == PipelineEntityType.LEAD
                         && pipeline.getStatus() == CatalogStatus.ACTIVE)
                 .orElseThrow(() -> new AppException(ErrorCode.LEAD_PIPELINE_UNAVAILABLE));
-    }
-
-    private String contactValue(UUID personId, PersonContactType type) {
-        return contactService.findByPersonAndType(personId, type).stream().findFirst()
-                .map(contact -> type == PersonContactType.PHONE
-                        ? contact.getNormalizedValue() : contact.getValue())
-                .orElse(null);
     }
 }

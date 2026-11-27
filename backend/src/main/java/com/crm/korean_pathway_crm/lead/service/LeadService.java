@@ -10,6 +10,7 @@ import com.crm.korean_pathway_crm.lead.dto.request.LeadFilterRequest;
 import com.crm.korean_pathway_crm.lead.dto.request.LeadUpdateRequest;
 import com.crm.korean_pathway_crm.lead.dto.response.LeadResponse;
 import com.crm.korean_pathway_crm.lead.entity.Lead;
+import com.crm.korean_pathway_crm.lead.security.LeadAccessPolicy;
 import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
 import com.crm.korean_pathway_crm.lead.enums.PersonResolution;
 import com.crm.korean_pathway_crm.lead.mapper.LeadMapper;
@@ -55,6 +56,7 @@ public class LeadService {
     );
 
     private final LeadRepository leadRepository;
+    private final LeadAccessPolicy leadAccessPolicy;
     private final LeadCatalogService leadCatalogService;
     private final PersonService personService;
     private final PersonContactService personContactService;
@@ -148,17 +150,11 @@ public class LeadService {
         Lead lead = leadRepository.findByIdAndDeletedAtIsNull(leadId)
                 .orElseThrow(() -> new AppException(ErrorCode.LEAD_NOT_FOUND));
 
-        String roleCode = actor.getRole().getCode();
-        boolean canReadAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
-                || SystemRoleCode.MANAGER.name().equals(roleCode);
-        if (!canReadAll && !actor.getId().equals(lead.getAssignedTo())) {
-            // 404 không tiết lộ Lead của counselor khác hoặc Lead chưa được giao.
-            throw new AppException(ErrorCode.LEAD_NOT_FOUND);
-        }
+        leadAccessPolicy.ensureAccessible(lead, actor);
 
         Person person = personService.getById(lead.getPersonId());
-        String phone = firstContactValue(person.getId(), PersonContactType.PHONE);
-        String email = firstContactValue(person.getId(), PersonContactType.EMAIL);
+        String phone = personContactService.findFirstValue(person.getId(), PersonContactType.PHONE);
+        String email = personContactService.findFirstValue(person.getId(), PersonContactType.EMAIL);
 
         return leadMapper.toLeadResponse(lead, person, phone, email);
     }
@@ -170,11 +166,7 @@ public class LeadService {
             throw new AppException(ErrorCode.INVALID_PARAMETER);
         }
         User actor = currentActorService.requireCurrentActor();
-        String roleCode = actor.getRole().getCode();
-
-        // Phân quyền dữ liệu: counselor chỉ thấy Lead được giao.
-        boolean canReadAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
-                || SystemRoleCode.MANAGER.name().equals(roleCode);
+        boolean canReadAll = leadAccessPolicy.canAccessAll(actor);
 
         // Chỉ cho phép sort theo thuộc tính Lead đã công bố trong API.
         String sortBy = StringUtils.hasText(request.getSortBy()) ? request.getSortBy().trim() : "createdAt";
@@ -245,13 +237,7 @@ public class LeadService {
 
         // Admin/Manager sửa mọi Lead; counselor hoặc role khác chỉ sửa Lead được giao.
         User actor = currentActorService.requireCurrentActor();
-        String roleCode = actor.getRole().getCode();
-        boolean canUpdateAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
-                || SystemRoleCode.MANAGER.name().equals(roleCode);
-        if (!canUpdateAll && !actor.getId().equals(lead.getAssignedTo())) {
-            // 404 không tiết lộ Lead của counselor khác hoặc Lead chưa được giao.
-            throw new AppException(ErrorCode.LEAD_NOT_FOUND);
-        }
+        leadAccessPolicy.ensureAccessible(lead, actor);
         if (lead.getStatus() != LeadStatus.OPEN) {
             throw new AppException(ErrorCode.LEAD_NOT_MODIFIABLE);
         }
@@ -273,8 +259,8 @@ public class LeadService {
         Lead savedLead = leadRepository.saveAndFlush(lead);
 
         Person person = personService.getById(savedLead.getPersonId());
-        String phone = firstContactValue(person.getId(), PersonContactType.PHONE);
-        String email = firstContactValue(person.getId(), PersonContactType.EMAIL);
+        String phone = personContactService.findFirstValue(person.getId(), PersonContactType.PHONE);
+        String email = personContactService.findFirstValue(person.getId(), PersonContactType.EMAIL);
         return leadMapper.toLeadResponse(savedLead, person, phone, email);
     }
 
@@ -289,13 +275,7 @@ public class LeadService {
 
         // Admin/Manager sửa mọi Lead; counselor hoặc role khác chỉ sửa Lead được giao.
         User actor = currentActorService.requireCurrentActor();
-        String roleCode = actor.getRole().getCode();
-        boolean canUpdateAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
-                || SystemRoleCode.MANAGER.name().equals(roleCode);
-        if (!canUpdateAll && !actor.getId().equals(lead.getAssignedTo())) {
-            // 404 không tiết lộ Lead của counselor khác hoặc Lead chưa được giao.
-            throw new AppException(ErrorCode.LEAD_NOT_FOUND);
-        }
+        leadAccessPolicy.ensureAccessible(lead, actor);
         if (lead.getStatus() != LeadStatus.OPEN) {
             throw new AppException(ErrorCode.LEAD_NOT_MODIFIABLE);
         }
@@ -314,15 +294,13 @@ public class LeadService {
         Lead savedLead = leadRepository.saveAndFlush(lead);
 
         Person person = personService.getById(savedLead.getPersonId());
-        String phone = firstContactValue(person.getId(), PersonContactType.PHONE);
-        String email = firstContactValue(person.getId(), PersonContactType.EMAIL);
+        String phone = personContactService.findFirstValue(person.getId(), PersonContactType.PHONE);
+        String email = personContactService.findFirstValue(person.getId(), PersonContactType.EMAIL);
         return leadMapper.toLeadResponse(savedLead, person, phone, email);
     }
 
     private void ensureCanReusePerson(User actor, Person person, List<Lead> previousLeads) {
-        String roleCode = actor.getRole().getCode();
-        boolean canReadAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
-                || SystemRoleCode.MANAGER.name().equals(roleCode);
+        boolean canReadAll = leadAccessPolicy.canAccessAll(actor);
         boolean createdByActorWithoutLead = previousLeads.isEmpty() && person.getCreatedBy() != null
                 && actor.getId().equals(person.getCreatedBy().getId());
         boolean assignedToActor = previousLeads.stream()
@@ -362,13 +340,6 @@ public class LeadService {
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private String firstContactValue(UUID personId, PersonContactType type) {
-        return personContactService.findByPersonAndType(personId, type).stream()
-                .findFirst()
-                .map(contact -> type == PersonContactType.PHONE
-                        ? contact.getNormalizedValue() : contact.getValue())
-                .orElse(null);
-    }
 
     private String normalizeRequiredName(String value) {
         if (value == null) {

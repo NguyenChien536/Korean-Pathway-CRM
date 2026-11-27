@@ -10,9 +10,9 @@ import com.crm.korean_pathway_crm.common.security.CurrentActorService;
 import com.crm.korean_pathway_crm.exception.AppException;
 import com.crm.korean_pathway_crm.exception.ErrorCode;
 import com.crm.korean_pathway_crm.lead.entity.Lead;
+import com.crm.korean_pathway_crm.lead.security.LeadAccessPolicy;
 import com.crm.korean_pathway_crm.lead.enums.LeadStatus;
 import com.crm.korean_pathway_crm.lead.repository.LeadRepository;
-import com.crm.korean_pathway_crm.role.enums.SystemRoleCode;
 import com.crm.korean_pathway_crm.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,6 +29,7 @@ import java.util.UUID;
 public class ActivityService {
     private final ActivityRepository activityRepository;
     private final LeadRepository leadRepository;
+    private final LeadAccessPolicy leadAccessPolicy;
     private final CurrentActorService currentActorService;
     private final ActivityMapper activityMapper;
 
@@ -74,13 +75,7 @@ public class ActivityService {
         Lead lead = leadRepository.findByIdAndDeletedAtIsNull(leadId)
                 .orElseThrow(() -> new AppException(ErrorCode.LEAD_NOT_FOUND));
 
-        String roleCode = actor.getRole().getCode();
-        boolean canAccessAll = SystemRoleCode.SYSTEM_ADMIN.name().equals(roleCode)
-                || SystemRoleCode.MANAGER.name().equals(roleCode);
-        if (!canAccessAll && !actor.getId().equals(lead.getAssignedTo())) {
-            // Cùng một 404 cho ID không tồn tại và Lead ngoài phạm vi, tránh lộ dữ liệu của người khác.
-            throw new AppException(ErrorCode.LEAD_NOT_FOUND);
-        }
+        leadAccessPolicy.ensureAccessible(lead, actor);
         return lead;
     }
 }

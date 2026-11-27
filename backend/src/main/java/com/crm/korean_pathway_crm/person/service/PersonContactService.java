@@ -34,6 +34,16 @@ public class PersonContactService {
     }
 
     @Transactional(readOnly = true)
+    public String findFirstValue(UUID personId, PersonContactType type) {
+        // Repository ưu tiên contact chính, rồi đến thời gian tạo và ID để thứ tự ổn định.
+        // Dùng chung cho các response; service gọi hàm này phải kiểm tra phạm vi dữ liệu trước.
+        return findByPersonAndType(personId, type).stream().findFirst()
+                .map(contact -> type == PersonContactType.PHONE
+                        ? contact.getNormalizedValue() : contact.getValue())
+                .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
     public List<PersonContact> findPhonesAndEmailsForPersons(Collection<UUID> personIds) {
         return personContactRepository
                 .findAllByPersonIdInAndContactTypeInOrderByPersonIdAscContactTypeAscPrimaryDescCreatedAtAscIdAsc(

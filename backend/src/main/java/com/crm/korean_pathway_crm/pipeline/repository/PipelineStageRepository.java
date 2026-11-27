@@ -15,4 +15,10 @@ public interface PipelineStageRepository extends JpaRepository<PipelineStage, UU
 
     Optional<PipelineStage> findByPipelineIdAndInitialTrueAndTerminalFalseAndCategoryAndStatus(
             UUID pipelineId, PipelineStageCategory category, CatalogStatus status);
+
+    Optional<PipelineStage> findByPipelineIdAndCodeAndCategoryAndTerminalTrueAndStatus(
+            UUID pipelineId,
+            String code,
+            PipelineStageCategory category,
+            CatalogStatus status);
 }
